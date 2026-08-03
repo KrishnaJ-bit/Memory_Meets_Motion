@@ -1,4 +1,4 @@
-# Relay
+# Oto.ai
 
 **Memory Meets Motion — Hackathon, Frontier Tower SF, Aug 3 2026**
 Track partners: RocketRide.ai · Guild.ai · LaserData · FalkorDB
