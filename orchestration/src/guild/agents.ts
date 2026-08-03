@@ -297,9 +297,13 @@ export const prRiskReview: GuildAgentDefinition = {
 };
 
 /**
- * The agents as they exist on Guild's server, created with the Guild CLI on
- * 2026-08-03 under workspace `krishivsagrawal/relay`
- * (019fc934-b21e-3bb9-0000-6ce317801803).
+ * The agents as they exist on Guild's server, published with the Guild CLI on
+ * 2026-08-03 under workspace `krishnaj-bit/relay` (019fc961-c58a-3bb9-0000-0eecc46e8c11).
+ *
+ * Republished under a fresh account+workspace the same day: the original
+ * `krishivsagrawal/relay` workspace belonged to a different Guild account than
+ * the one authenticated on this machine, so its agents (same source, same
+ * ids referenced in `agents/README.md`'s history) were not reachable here.
  *
  * The definitions above are the local orchestration contract — what triggers
  * them, what scope they get, and what they do when this process drives them.
@@ -307,14 +311,14 @@ export const prRiskReview: GuildAgentDefinition = {
  * audited sessions live (`agents/<name>/agent.ts`).
  */
 export const GUILD_AGENT_IDS: Record<string, string> = {
-	'context-summarizer': '019fc939-8d66-726e-0000-97803b16e34d',
-	'relay-resume': '019fc937-a87d-726e-0000-bdf6e8e7c06b',
-	'pr-risk-review': '019fc939-9b97-726e-0000-d9ae2351982c',
+	'context-summarizer': '019fc96e-bf4e-726e-0000-3946e652ce48',
+	'relay-resume': '019fc96e-e112-726e-0000-ee79e865fc10',
+	'pr-risk-review': '019fc96e-eb5e-726e-0000-a8d76d289353',
 };
 
 export const GUILD_WORKSPACE = {
-	id: '019fc934-b21e-3bb9-0000-6ce317801803',
-	slug: 'krishivsagrawal/relay',
+	id: '019fc961-c58a-3bb9-0000-0eecc46e8c11',
+	slug: 'krishnaj-bit/relay',
 };
 
 export const agents: GuildAgentDefinition[] = [contextSummarizer, relayResume, prRiskReview];

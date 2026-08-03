@@ -1,0 +1,15 @@
+Command: guild workspace chat --agent krishnaj-bit~relay-pr-risk-review --once "..."
+Session: 019fc978-e04c-351a-0000-e1392fcdb79f
+Workspace: krishnaj-bit/relay (019fc961-c58a-3bb9-0000-0eecc46e8c11)
+Agent: krishnaj-bit~relay-pr-risk-review (019fc96e-eb5e-726e-0000-a8d76d289353)
+
+Note: same Guild-vault-credential limitation as G2 above. Real PR review
+happens via the local invokeAgent(prRiskReview, ...) path, which posts a real
+comment on the real PR using this repo's fine-grained GITHUB_TOKEN.
+
+Real output (verbatim):
+I attempted to retrieve the details of PR #1 in KrishnaJ-bit/MemoryMeetsMotion using the GitHub integration, but the API returned an unauthorized error:
+
+    "Integration credentials not configured for github-oauth. Use the guildcredentialsrequest tool to set up credentials."
+
+Because the necessary GitHub credentials are not configured in this environment, I cannot access the real PR body, file list, or diff to perform the review. Please ensure that the GitHub integration is properly authenticated so that I can fetch and review the pull request.

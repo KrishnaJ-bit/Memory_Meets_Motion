@@ -3,75 +3,93 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Relay Autopilot Presence Monitor</title>
+    <title>Relay — memory that survives the developer leaving</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">◆</span>
+        <div>
+          <p class="eyebrow">Relay</p>
+          <h1>Autopilot arms when the developer leaves.</h1>
+        </div>
+      </div>
+      <div id="modeBadge" class="mode-badge" data-mode="watching">
+        <span class="mode-dot" aria-hidden="true"></span>
+        <span id="modeBadgeText">Watching</span>
+      </div>
+    </header>
+
     <main class="app-shell">
       <section class="presence-pane" aria-label="Presence monitor">
-        <div class="topbar">
-          <div>
-            <p class="eyebrow">Relay Presence Gate</p>
-            <h1>Autopilot arms when the developer leaves.</h1>
-          </div>
-          <div id="modeBadge" class="mode-badge" data-mode="watching">Watching</div>
-        </div>
+        <h2 class="pane-title">Presence signals</h2>
+        <p class="pane-sub">Mouse, click, keyboard, and tab visibility — no camera required.</p>
 
         <div class="signal-grid">
-          <article class="camera-panel">
-            <video id="cameraFeed" autoplay playsinline muted></video>
-            <canvas id="cameraProbe" width="96" height="54" aria-hidden="true"></canvas>
-            <div class="camera-overlay">
-              <span id="cameraStatus">Camera off</span>
-            </div>
-          </article>
-
-          <article class="status-panel">
-            <div class="status-row">
-              <span>Mouse</span>
-              <strong id="mouseStatus">waiting</strong>
-            </div>
-            <div class="status-row">
-              <span>Clicks</span>
-              <strong id="clickStatus">0</strong>
-            </div>
-            <div class="status-row">
-              <span>Keyboard</span>
-              <strong id="keyStatus">waiting</strong>
-            </div>
-            <div class="status-row">
-              <span>Camera motion</span>
-              <strong id="motionStatus">off</strong>
-            </div>
-            <div class="status-row">
-              <span>Idle window</span>
-              <strong><span id="idleCountdown">7.0</span>s</strong>
-            </div>
-          </article>
+          <div class="signal-row">
+            <span class="signal-label">Mouse</span>
+            <strong id="mouseStatus" class="signal-value">waiting</strong>
+          </div>
+          <div class="signal-row">
+            <span class="signal-label">Clicks</span>
+            <strong id="clickStatus" class="signal-value">0</strong>
+          </div>
+          <div class="signal-row">
+            <span class="signal-label">Keyboard</span>
+            <strong id="keyStatus" class="signal-value">waiting</strong>
+          </div>
+          <div class="signal-row">
+            <span class="signal-label">Tab</span>
+            <strong id="tabStatus" class="signal-value">visible</strong>
+          </div>
         </div>
 
-        <div class="controls" aria-label="Demo controls">
-          <button id="cameraButton" type="button">Start camera</button>
-          <button id="leaveButton" type="button">Simulate leaving</button>
-          <button id="resetButton" type="button">Reset watch</button>
-          <label>
-            Idle seconds
+        <div class="idle-block">
+          <div class="idle-row">
+            <span>Idle window</span>
+            <strong><span id="idleCountdown">7.0</span>s</strong>
+          </div>
+          <div class="idle-bar-track" aria-hidden="true">
+            <div id="idleBarFill" class="idle-bar-fill"></div>
+          </div>
+          <label class="idle-range">
             <input id="idleSeconds" type="range" min="3" max="15" value="7" />
           </label>
         </div>
+
+        <div class="controls" aria-label="Demo controls">
+          <button id="leaveButton" type="button" class="btn btn-primary">Simulate leaving</button>
+          <button id="resetButton" type="button" class="btn btn-ghost">Reset watch</button>
+        </div>
+
+        <div class="target-card">
+          <p class="pane-sub">Handoff target</p>
+          <p class="target-task" id="targetTask">task-checkout-rate-limit</p>
+        </div>
       </section>
 
-      <section class="autopilot-pane" aria-label="Autopilot status">
-        <p class="eyebrow">Handoff target</p>
-        <h2>task-checkout-rate-limit</h2>
-        <ol id="timeline" class="timeline">
-          <li data-state="done">Capture active session signals.</li>
-          <li data-state="waiting">Detect developer absence.</li>
-          <li data-state="waiting">Emit `developer_absent` event.</li>
-          <li data-state="waiting">Start governed `relay-resume` autopilot.</li>
-          <li data-state="waiting">Run RocketRide completion pipeline.</li>
-        </ol>
-        <pre id="handoffPayload" aria-label="Latest handoff payload">{}</pre>
+      <section class="feed-pane" aria-label="Live event feed">
+        <h2 class="pane-title">Live run — LaserData · FalkorDB · RocketRide · Guild.ai</h2>
+        <p class="pane-sub">Every stage below is a real call against a real system, streamed as it happens — not a script.</p>
+        <ol id="feed" class="feed"></ol>
+
+        <div id="approvalGate" class="approval-gate" hidden>
+          <div class="approval-copy">
+            <p class="approval-title">Fix is ready. Tests are green.</p>
+            <p class="approval-sub">A human has to approve before the PR opens — Relay does not merge unattended.</p>
+          </div>
+          <div class="approval-actions">
+            <button id="approveButton" type="button" class="btn btn-approve">Approve &amp; open PR</button>
+            <button id="declineButton" type="button" class="btn btn-decline">Decline</button>
+          </div>
+        </div>
+
+        <div id="finale" class="finale" hidden>
+          <p class="finale-eyebrow" id="finaleEyebrow">Outcome</p>
+          <a id="finaleLink" class="finale-link" href="#" target="_blank" rel="noopener"></a>
+          <p class="finale-sub" id="finaleSub"></p>
+        </div>
       </section>
     </main>
 

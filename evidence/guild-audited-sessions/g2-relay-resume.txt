@@ -1,0 +1,29 @@
+Command: guild workspace chat --agent krishnaj-bit~relay-resume --once "..."
+Session: 019fc97a-37f1-351a-0000-609a36f98e87
+Workspace: krishnaj-bit/relay (019fc961-c58a-3bb9-0000-0eecc46e8c11)
+Agent: krishnaj-bit~relay-resume (019fc96e-e112-726e-0000-ee79e865fc10)
+
+Note: this hosted-agent chat path uses Guild's own credential vault
+(github-oauth integration), which was not configured (`guild credentials list`
+returned "No credentials found"). The agent correctly reported that instead of
+fabricating a PR — matching its own system prompt's honesty rule. The REAL
+demo's G2 execution goes through the local invokeAgent(relayResume, ...) path
+instead, which uses this repo's own GITHUB_TOKEN (a real fine-grained PAT) via
+orchestration/src/github.ts, not Guild's vault. See
+evidence/live-agent-runs/g2-relay-resume-local.json for that real PR-opening run.
+
+Real output (verbatim):
+I lack the GitHub credentials required to read the repository contents, edit the files, and open a pull request. Specifically, attempting to access the repository returned an unauthorized error: Integration credentials not configured for github-oauth.
+
+### What was inherited & The Blocker
+
+    * The Blocker: A boundary refill failure at exactly 1000 ms in demo/toy-repo/src/rateLimit.js. The implementation used a strict greater-than (>) comparison instead of a greater-than-or-equal-to (>=) comparison when checking if enough time has elapsed to refill the rate limit bucket/tokens.
+
+### The Intended Fix
+
+If credentials were available, the smallest change to finish the task would be:
+
+    1. Open demo/toy-repo/src/rateLimit.js.
+    2. Locate the time check comparing elapsed time against the limit/interval (e.g., elapsed > 1000 or elapsed > interval).
+    3. Modify that conditional expression to use >= instead of > (e.g., elapsed >= 1000 or elapsed >= interval), ensuring the rate limit refills correctly exactly at the 1000 ms boundary.
+    4. Verify the fix against the project's test suite, and open a pull request.

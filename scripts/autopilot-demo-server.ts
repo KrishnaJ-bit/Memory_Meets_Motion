@@ -1,13 +1,19 @@
 import "dotenv/config";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { runAutopilot } from "../demo/relay/autopilot.js";
+import { prepareAutopilot, finalizeAutopilot, type PendingApproval, type Stage } from "../demo/relay/autopilot.js";
 
 const root = path.resolve("demo/autopilot-monitor");
 const eventDir = path.join(root, "events");
 const port = Number(process.env.AUTOPILOT_DEMO_PORT ?? 4173);
+
+// In-memory only: this is a single-operator local demo server, not a
+// multi-tenant service. A run's pending state lives here between the
+// "prepare" SSE stream finishing and the human clicking Approve/Decline.
+const pendingRuns = new Map<string, PendingApproval>();
 
 const contentTypes: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
@@ -35,7 +41,84 @@ async function appendJsonl(filename: string, value: unknown) {
   await writeFile(path.join(eventDir, filename), `${JSON.stringify(value)}\n`, { flag: "a" });
 }
 
+/** Minimal SSE helper: one `event:`/`data:` frame per call, flushed immediately. */
+function sseWrite(response: ServerResponse, event: string, data: unknown): void {
+  response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+function startSse(response: ServerResponse): void {
+  response.writeHead(200, {
+    "content-type": "text/event-stream; charset=utf-8",
+    "cache-control": "no-cache",
+    connection: "keep-alive"
+  });
+}
+
+/** GET /api/autopilot/prepare-stream?task_id=...&offset=... — streams every stage live. */
+async function handlePrepareStream(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
+  const taskId = url.searchParams.get("task_id") ?? undefined;
+  const offset = Number(url.searchParams.get("offset") ?? "0");
+  const runId = randomUUID();
+
+  startSse(response);
+  sseWrite(response, "run_id", { run_id: runId });
+
+  try {
+    const pending = await prepareAutopilot({
+      taskId,
+      replayOffset: Number.isFinite(offset) ? offset : 0,
+      onProgress: (stage: Stage) => sseWrite(response, "stage", stage)
+    });
+    pendingRuns.set(runId, pending);
+    sseWrite(response, "ready", { run_id: runId, pending });
+  } catch (error) {
+    sseWrite(response, "error", { message: error instanceof Error ? error.message : String(error) });
+  } finally {
+    response.end();
+  }
+}
+
+/** GET /api/autopilot/approve-stream?run_id=...&approved=true|false — streams the finalize stages. */
+async function handleApproveStream(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
+  const runId = url.searchParams.get("run_id") ?? "";
+  const approved = url.searchParams.get("approved") === "true";
+  const pending = pendingRuns.get(runId);
+
+  startSse(response);
+
+  if (!pending) {
+    sseWrite(response, "error", { message: `Unknown run_id ${runId} — the server may have restarted since prepare.` });
+    response.end();
+    return;
+  }
+
+  try {
+    // finalizeAutopilot doesn't take onProgress (its stage list is short and
+    // returned whole), so stream a synthetic "starting" frame, run it, then
+    // replay each of its stages as its own SSE frame for a consistent feed.
+    sseWrite(response, "stage", { name: "finalize_start", status: "live", detail: approved ? "Starting finalize: opening PR if tests passed." : "Starting finalize: recording the decline, no PR." });
+    const result = await finalizeAutopilot(pending, approved);
+    const newStages = result.stages.slice(pending.stages.length);
+    for (const stage of newStages) sseWrite(response, "stage", stage);
+    sseWrite(response, "done", result);
+    pendingRuns.delete(runId);
+  } catch (error) {
+    sseWrite(response, "error", { message: error instanceof Error ? error.message : String(error) });
+  } finally {
+    response.end();
+  }
+}
+
 async function handleApi(request: IncomingMessage, response: ServerResponse, url: URL) {
+  if (url.pathname === "/api/autopilot/prepare-stream" && request.method === "GET") {
+    await handlePrepareStream(request, response, url);
+    return;
+  }
+  if (url.pathname === "/api/autopilot/approve-stream" && request.method === "GET") {
+    await handleApproveStream(request, response, url);
+    return;
+  }
+
   if (request.method !== "POST") {
     send(response, 405, JSON.stringify({ error: "method_not_allowed" }), "application/json; charset=utf-8");
     return;
@@ -46,44 +129,6 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
   if (url.pathname === "/api/activity-events") {
     await appendJsonl("presence-events.jsonl", body);
     send(response, 200, JSON.stringify({ ok: true }), "application/json; charset=utf-8");
-    return;
-  }
-
-  if (url.pathname === "/api/autopilot/start") {
-    // This used to return a canned list of what autopilot *would* do. It now
-    // actually runs it: replay the L1 tail, rebuild context from the graph,
-    // patch the code, run the real test suite, and write the agent's work back
-    // to FalkorDB. Each stage reports whether it ran live or degraded.
-    const handoff = body as { task_id?: string; payload?: { idle_ms?: number; reason?: string } };
-    const startedAt = new Date().toISOString();
-
-    let run: Awaited<ReturnType<typeof runAutopilot>> | undefined;
-    let failure: string | undefined;
-    try {
-      run = await runAutopilot({ taskId: handoff.task_id, replayOffset: 0 });
-    } catch (error) {
-      failure = error instanceof Error ? error.message : String(error);
-    }
-
-    const autopilotRun = {
-      autopilot_id: `autopilot-${Date.now()}`,
-      mode: run?.testsPassed ? "completed" : failure ? "failed" : "finished_with_failures",
-      started_at: startedAt,
-      received: body,
-      result: run
-        ? {
-            tests_passed: run.testsPassed,
-            attempts: run.attempts,
-            patch_applied: run.patchApplied,
-            graph: run.graph,
-            l3_records: run.l3Records,
-            stages: run.stages.map((stage) => ({ name: stage.name, status: stage.status, detail: stage.detail }))
-          }
-        : { error: failure }
-    };
-
-    await appendJsonl("autopilot-handoffs.jsonl", autopilotRun);
-    send(response, run || !failure ? 200 : 500, JSON.stringify(autopilotRun), "application/json; charset=utf-8");
     return;
   }
 

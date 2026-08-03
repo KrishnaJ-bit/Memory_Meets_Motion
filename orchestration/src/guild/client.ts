@@ -12,11 +12,29 @@
 //   - endSession      — close it with a status
 //
 // `GatewayGuildTransport` implements that over HTTP against GUILD_GATEWAY_URL.
-// The exact route names are the one unverified piece here — they are collected
-// in ROUTES below so that confirming them against Guild's live docs is a
-// single-object edit rather than a rewrite. `LocalGuildTransport` runs the same
-// agents with a local audit log when no Guild credentials are present, so the
-// pipeline work is testable before the Guild account exists.
+// The exact route names were the one unverified piece here — collected in
+// ROUTES below in case confirming them against Guild's live docs turned out to
+// be a single-object edit. It wasn't: checked on 2026-08-03 with a real,
+// authenticated `guild` CLI session and a real workspace —
+// `GET /workspaces/{id}/agents` (and by extension the sibling routes derived
+// from it) 404s. Guild's real API does not expose a custom
+// register-agent/start-session/append-session REST surface at all; agent
+// execution and session recording happen through Guild's own git-based publish
+// workflow (`guild agent save --publish`) and its chat/run surface
+// (`guild workspace chat --agent <owner>~<name>`), not through a bespoke
+// gateway this orchestration layer could drive.
+//
+// So `resolveTransport()` defaults to `LocalGuildTransport` even when
+// GUILD_API_KEY/GUILD_WORKSPACE_ID are set — that pair is still genuinely
+// useful (used directly via `guild api`/`guild` CLI elsewhere, e.g. to publish
+// the three agents this file defines to Guild's real hosted catalog), it just
+// doesn't mean this specific guessed REST surface works. Real,
+// Guild-dashboard-visible audited sessions for G1/G2/G3 come from actually
+// invoking the published agents via the CLI (see agents/README.md), which is a
+// confirmed-real mechanism; `LocalGuildTransport` is this process's own honest
+// audit trail for the local orchestration run, not a substitute for that.
+// Set GUILD_FORCE_GATEWAY=1 to opt back into the gateway attempt once/if the
+// real routes are confirmed.
 
 import { appendFile, mkdir } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -138,7 +156,7 @@ export class LocalGuildTransport implements GuildTransport {
 
 /** Gateway when credentials exist, local audit log otherwise. */
 export function resolveTransport(): GuildTransport {
-	if (config.guild.apiKey && config.guild.workspaceId) {
+	if (process.env.GUILD_FORCE_GATEWAY === '1' && config.guild.apiKey && config.guild.workspaceId) {
 		return new GatewayGuildTransport();
 	}
 	return new LocalGuildTransport();

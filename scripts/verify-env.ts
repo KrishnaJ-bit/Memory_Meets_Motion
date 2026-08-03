@@ -113,7 +113,24 @@ async function checkGuildAuth(): Promise<Check> {
 
 async function checkFalkorDB(): Promise<Check> {
   try {
-    const db = await FalkorDB.connect({ socket: { host: "localhost", port: 6379 } });
+    // Bug fix: this used to hard-code localhost:6379 regardless of FALKORDB_URL, so it
+    // reported MISSING even when a real (e.g. cloud) FalkorDB was reachable and configured.
+    const rawUrl = process.env.FALKORDB_URL;
+    const connectOptions = rawUrl
+      ? (() => {
+          const u = new URL(rawUrl);
+          return {
+            username: u.username || undefined,
+            password: u.password || undefined,
+            socket: { host: u.hostname, port: u.port ? Number(u.port) : 6379 },
+          };
+        })()
+      : {
+          username: process.env.FALKOR_USERNAME || undefined,
+          password: process.env.FALKOR_PASSWORD || undefined,
+          socket: { host: process.env.FALKOR_HOST || "localhost", port: Number(process.env.FALKOR_PORT || 6379) },
+        };
+    const db = await FalkorDB.connect(connectOptions);
     const graph = db.selectGraph("relay_env_check");
     await graph.query("MERGE (:SetupCheck {id: $id})", { params: { id: "env-check" } });
     const result = await graph.query("MATCH (n:SetupCheck {id: $id}) RETURN count(n) AS count", {

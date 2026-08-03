@@ -1,0 +1,19 @@
+Command: guild workspace chat --agent krishnaj-bit~relay-context-summarizer --once "..."
+Session: 019fc978-3e24-351a-0000-302fcffe9bc4
+Workspace: krishnaj-bit/relay (019fc961-c58a-3bb9-0000-0eecc46e8c11)
+Agent: krishnaj-bit~relay-context-summarizer (019fc96e-bf4e-726e-0000-3946e652ce48)
+Real output (verbatim):
+{
+  "decisions": [
+    {
+      "decisionid": "step2",
+      "taskid": "demo-task",
+      "sessionid": "demo-session-1",
+      "text": "switched from sliding-window to token-bucket rate limiting",
+      "reasoning": "per-user timestamp lists were too complex for the demo service",
+      "relatedfiles": [],
+      "blocker": null,
+      "nextstep": null
+    }
+  ]
+}

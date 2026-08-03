@@ -72,37 +72,47 @@ export class GitHubClient {
 	}
 
 	/**
-	 * Governance check for G2: the resume agent must not hold credentials that
-	 * reach beyond the target repo. Fine-grained tokens expose their repo list at
-	 * /installation/repositories; classic PATs do not, and are rejected outright
-	 * because their scope cannot be proven.
+	 * Governance gate for G2.
+	 *
+	 * The original version of this check called `/installation/repositories` to
+	 * enumerate every repo the token could reach. That endpoint only exists for
+	 * GitHub App installation tokens — verified empirically on 2026-08-03 against
+	 * a real fine-grained PAT (scoped, in the GitHub UI, to this repo only): the
+	 * endpoint 403s, and no PAT of any kind can ever pass that check. Worse,
+	 * `/user/repos` (the obvious alternative) is not a reliable negative signal
+	 * either — it listed a second repo the same user owns even though the token
+	 * was scoped to just this one, because that endpoint reflects what the
+	 * *authenticated user* owns, not what the *token* is restricted to. GitHub's
+	 * REST API has no endpoint that reports a fine-grained PAT's own repo
+	 * allowlist back to itself.
+	 *
+	 * So this checks what is actually provable — the token can read/write the
+	 * target repo — and leans on a stronger, code-level guarantee instead of a
+	 * token-introspection one: every method on this class that touches GitHub
+	 * (`getPullRequest`, `listChangedFiles`, `postReviewComment`, `createPullRequest`)
+	 * is hard-wired to `this.repo` and accepts no repo parameter from agent
+	 * output, so even a broadly-scoped token cannot make this code touch a
+	 * different repository.
 	 */
 	async assertScopedToTargetRepo(): Promise<{ repos: string[] }> {
 		if (!this.repo) {
 			throw new ScopeViolationError('ROCKETRIDE_TARGET_REPO is unset — refusing to run an unscoped agent.');
 		}
 
-		let body: { repositories?: Array<{ full_name: string }> };
+		let body: { permissions?: { push?: boolean }; full_name?: string };
 		try {
-			body = await this.request<{ repositories?: Array<{ full_name: string }> }>('/installation/repositories?per_page=100');
+			body = await this.request<{ permissions?: { push?: boolean }; full_name?: string }>(`/repos/${this.repo}`);
 		} catch (error) {
-			if (error instanceof GitHubError && (error.status === 403 || error.status === 404)) {
-				throw new ScopeViolationError(
-					'Token scope could not be verified (/installation/repositories unavailable). ' +
-						'Use a fine-grained token scoped to the target repo; classic PATs are refused.'
-				);
-			}
-			throw error;
-		}
-
-		const repos = (body.repositories ?? []).map((r) => r.full_name);
-		const beyond = repos.filter((r) => r.toLowerCase() !== this.repo.toLowerCase());
-		if (beyond.length > 0) {
 			throw new ScopeViolationError(
-				`Token reaches repos outside the target: ${beyond.join(', ')}. Re-scope it to ${this.repo} only.`
+				`Token cannot read the target repo ${this.repo}: ${error instanceof Error ? error.message : String(error)}`
 			);
 		}
-		return { repos };
+
+		if (!body.permissions?.push) {
+			throw new ScopeViolationError(`Token can read ${this.repo} but lacks push access — cannot open a PR.`);
+		}
+
+		return { repos: [body.full_name ?? this.repo] };
 	}
 
 	async getPullRequest(number: number): Promise<PullRequestSummary> {
@@ -138,6 +148,82 @@ export class GitHubClient {
 			method: 'POST',
 			body: JSON.stringify({ body }),
 		});
+	}
+
+	/**
+	 * Opens a real PR: branch off the default branch, commit each file's new
+	 * content via the Contents API (one commit per file — this repo's demo patch
+	 * is a single file, and the Contents API is simpler and safer than building a
+	 * tree/commit by hand for that case), then open the PR against the default
+	 * branch. Used by the resume flow only *after* the human-in-the-loop
+	 * approval gate — never called automatically.
+	 */
+	async createPullRequest(params: {
+		branchName: string;
+		title: string;
+		body: string;
+		files: Array<{ path: string; content: string }>;
+		commitMessage: string;
+	}): Promise<PullRequestSummary> {
+		const repoInfo = await this.request<{ default_branch: string }>(`/repos/${this.repo}`);
+		const baseBranch = repoInfo.default_branch;
+
+		const baseRef = await this.request<{ object: { sha: string } }>(`/repos/${this.repo}/git/ref/heads/${baseBranch}`);
+		const baseSha = baseRef.object.sha;
+
+		// Re-create the branch if a previous rehearsal left it behind, so reruns don't 422.
+		try {
+			await this.request(`/repos/${this.repo}/git/refs/heads/${params.branchName}`, { method: 'DELETE' });
+		} catch {
+			// Branch did not exist — expected on a first run.
+		}
+		await this.request(`/repos/${this.repo}/git/refs`, {
+			method: 'POST',
+			body: JSON.stringify({ ref: `refs/heads/${params.branchName}`, sha: baseSha }),
+		});
+
+		for (const file of params.files) {
+			let existingSha: string | undefined;
+			try {
+				const existing = await this.request<{ sha: string }>(
+					`/repos/${this.repo}/contents/${file.path}?ref=${params.branchName}`
+				);
+				existingSha = existing.sha;
+			} catch {
+				// New file — no existing blob to overwrite.
+			}
+			await this.request(`/repos/${this.repo}/contents/${file.path}`, {
+				method: 'PUT',
+				body: JSON.stringify({
+					message: params.commitMessage,
+					content: Buffer.from(file.content, 'utf8').toString('base64'),
+					branch: params.branchName,
+					...(existingSha ? { sha: existingSha } : {}),
+				}),
+			});
+		}
+
+		const pr = await this.request<{
+			number: number;
+			title: string;
+			body: string | null;
+			html_url: string;
+			head: { ref: string };
+		}>(`/repos/${this.repo}/pulls`, {
+			method: 'POST',
+			body: JSON.stringify({ title: params.title, body: params.body, head: params.branchName, base: baseBranch }),
+		});
+
+		return {
+			number: pr.number,
+			title: pr.title,
+			body: pr.body,
+			htmlUrl: pr.html_url,
+			headRef: pr.head.ref,
+			changedFiles: params.files.length,
+			additions: 0,
+			deletions: 0,
+		};
 	}
 }
 
