@@ -1,12 +1,20 @@
 {
   "name": "memory_meets_motion",
   "version": "1.0.0",
-  "description": "Relay integration demo for the Memory Meets Motion hackathon.",
+  "description": "Relay: capture, memory, orchestration and the autopilot demo for Memory Meets Motion.",
   "type": "module",
   "scripts": {
+    "demo": "tsx scripts/relay-demo.ts",
     "demo:autopilot": "tsx scripts/autopilot-demo-server.ts",
-    "env:check": "tsx scripts/verify-env.ts",
     "demo:test": "npm test --prefix demo/toy-repo",
+    "env:check": "tsx scripts/verify-env.ts",
+    "simulate": "tsx scripts/simulate_session.ts",
+    "replay": "tsx scripts/replay_l1.ts",
+    "replay-l2": "tsx scripts/replay_l2.ts",
+    "seed-graph": "tsx scripts/seed_graph.ts",
+    "inspect-graph": "tsx scripts/inspect_graph.ts",
+    "build-fixtures": "tsx scripts/build_fixtures.ts",
+    "typecheck": "tsc --noEmit",
     "test": "npm run env:check"
   },
   "repository": {
@@ -28,8 +36,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^26.1.2",
-    "tsx": "^4.23.5",
-    "typescript": "^7.0.2"
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
   }
 }

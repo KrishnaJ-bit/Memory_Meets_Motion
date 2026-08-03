@@ -1,0 +1,11 @@
+[
+  {
+    "blocker_id": "blocker_3",
+    "blocker_description": "LaserData SDK requires Node >=22.14",
+    "step_id": "step_3",
+    "step_description": "write failing test",
+    "files": [
+      "capture/src/write_failing_test.ts"
+    ]
+  }
+]

@@ -6,8 +6,12 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
     "types": ["node"]
   },
-  "include": ["scripts/**/*.ts"]
+  "include": ["capture/src", "memory/src", "scripts", "src/shared"],
+  "exclude": ["node_modules", "orchestration", "demo/toy-repo"]
 }

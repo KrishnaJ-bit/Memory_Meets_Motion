@@ -1,0 +1,289 @@
+[
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "note",
+    "timestamp": "2026-08-03T17:00:01.000Z",
+    "payload": {
+      "kind": "task_started",
+      "title": "Build capture + memory layer for Relay"
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "note",
+    "timestamp": "2026-08-03T17:00:03.000Z",
+    "payload": {
+      "kind": "step_started",
+      "step_id": "step_1",
+      "description": "read repo docs",
+      "order": 0
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "file_save",
+    "timestamp": "2026-08-03T17:00:23.000Z",
+    "payload": {
+      "step_id": "step_1",
+      "path": "capture/src/read_repo_docs.ts"
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "diff",
+    "timestamp": "2026-08-03T17:00:34.000Z",
+    "payload": {
+      "step_id": "step_1",
+      "path": "capture/src/read_repo_docs.ts",
+      "lines_changed": 60
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "terminal_cmd",
+    "timestamp": "2026-08-03T17:00:43.000Z",
+    "payload": {
+      "step_id": "step_1",
+      "command": "npm test",
+      "exit_code": 0
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "note",
+    "timestamp": "2026-08-03T17:00:53.000Z",
+    "payload": {
+      "kind": "step_completed",
+      "step_id": "step_1",
+      "description": "read repo docs"
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "note",
+    "timestamp": "2026-08-03T17:00:58.000Z",
+    "payload": {
+      "kind": "step_started",
+      "step_id": "step_2",
+      "description": "reproduce the bug",
+      "order": 1
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "note",
+    "timestamp": "2026-08-03T17:01:10.000Z",
+    "payload": {
+      "kind": "decision",
+      "step_id": "step_2",
+      "text": "use MERGE instead of CREATE for graph writes",
+      "reasoning": "replay safety on consumer restart"
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "file_save",
+    "timestamp": "2026-08-03T17:01:25.000Z",
+    "payload": {
+      "step_id": "step_2",
+      "path": "capture/src/reproduce_the_bug.ts"
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "diff",
+    "timestamp": "2026-08-03T17:01:29.000Z",
+    "payload": {
+      "step_id": "step_2",
+      "path": "capture/src/reproduce_the_bug.ts",
+      "lines_changed": 25
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "terminal_cmd",
+    "timestamp": "2026-08-03T17:01:45.000Z",
+    "payload": {
+      "step_id": "step_2",
+      "command": "npm run typecheck",
+      "exit_code": 0
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "note",
+    "timestamp": "2026-08-03T17:01:56.000Z",
+    "payload": {
+      "kind": "step_completed",
+      "step_id": "step_2",
+      "description": "reproduce the bug"
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "note",
+    "timestamp": "2026-08-03T17:02:00.000Z",
+    "payload": {
+      "kind": "step_started",
+      "step_id": "step_3",
+      "description": "write failing test",
+      "order": 2
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "note",
+    "timestamp": "2026-08-03T17:02:08.000Z",
+    "payload": {
+      "kind": "blocker_encountered",
+      "step_id": "step_3",
+      "blocker_id": "blocker_3",
+      "description": "LaserData SDK requires Node >=22.14"
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "note",
+    "timestamp": "2026-08-03T17:02:14.000Z",
+    "payload": {
+      "kind": "decision",
+      "step_id": "step_3",
+      "text": "pin to the installed Node version instead of upgrading immediately",
+      "reasoning": "the LaserData SDK's newer Node requirement isn't worth blocking the whole task over"
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "file_save",
+    "timestamp": "2026-08-03T17:02:25.000Z",
+    "payload": {
+      "step_id": "step_3",
+      "path": "capture/src/write_failing_test.ts"
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "diff",
+    "timestamp": "2026-08-03T17:02:45.000Z",
+    "payload": {
+      "step_id": "step_3",
+      "path": "capture/src/write_failing_test.ts",
+      "lines_changed": 28
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "terminal_cmd",
+    "timestamp": "2026-08-03T17:02:50.000Z",
+    "payload": {
+      "step_id": "step_3",
+      "command": "git diff --stat",
+      "exit_code": 0
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "terminal_cmd",
+    "timestamp": "2026-08-03T17:03:08.000Z",
+    "payload": {
+      "step_id": "step_3",
+      "command": "npm test",
+      "exit_code": 0
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "note",
+    "timestamp": "2026-08-03T17:03:12.000Z",
+    "payload": {
+      "kind": "step_completed",
+      "step_id": "step_3",
+      "description": "write failing test"
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "note",
+    "timestamp": "2026-08-03T17:03:15.000Z",
+    "payload": {
+      "kind": "step_started",
+      "step_id": "step_4",
+      "description": "implement fix",
+      "order": 3
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "file_save",
+    "timestamp": "2026-08-03T17:03:19.000Z",
+    "payload": {
+      "step_id": "step_4",
+      "path": "capture/src/implement_fix.ts"
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "diff",
+    "timestamp": "2026-08-03T17:03:30.000Z",
+    "payload": {
+      "step_id": "step_4",
+      "path": "capture/src/implement_fix.ts",
+      "lines_changed": 28
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "terminal_cmd",
+    "timestamp": "2026-08-03T17:03:46.000Z",
+    "payload": {
+      "step_id": "step_4",
+      "command": "npm run seed-graph",
+      "exit_code": 0
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "note",
+    "timestamp": "2026-08-03T17:03:48.000Z",
+    "payload": {
+      "kind": "step_completed",
+      "step_id": "step_4",
+      "description": "implement fix"
+    }
+  },
+  {
+    "session_id": "demo-session",
+    "task_id": "demo-task",
+    "event_type": "note",
+    "timestamp": "2026-08-03T17:04:07.000Z",
+    "payload": {
+      "kind": "task_completed",
+      "title": "Build capture + memory layer for Relay"
+    }
+  }
+]

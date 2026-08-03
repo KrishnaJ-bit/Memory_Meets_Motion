@@ -1,0 +1,546 @@
+[
+  {
+    "offset": 0,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.916Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_task.cypher",
+        "query": "// F1: idempotent write for the task_started event. Replay-safe (MERGE, not CREATE) — running\n// this twice for the same $id is a no-op beyond the ON MATCH refresh.\nMERGE (t:Task {id: $id})\nON CREATE SET\n  t.session_id = $session_id,\n  t.title = $title,\n  t.status = $status,\n  t.created_at = $created_at\nON MATCH SET\n  t.status = $status\nRETURN t\n",
+        "params": {
+          "id": "demo-task",
+          "session_id": "demo-session",
+          "title": "Build capture + memory layer for Relay",
+          "status": "open",
+          "created_at": "2026-08-03T17:00:01.000Z"
+        },
+        "source_event_type": "note",
+        "nodes_created": 1,
+        "relationships_created": 0,
+        "properties_set": 4
+      }
+    }
+  },
+  {
+    "offset": 1,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.917Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_step.cypher",
+        "query": "// F1: idempotent write for step_started / step_completed events (root EXECUTION.md Section 2:\n// `(:Step {id, order, description, status})`).\n//\n// HAS_STEP is a deliberate addition beyond Section 2's illustrative edge list — see the note atop\n// src/shared/graph-contract.ts for why Task needs a direct edge to its Steps for F2 to work.\n// NEXT chains steps in the order they started, matching Section 2's `Step-[:NEXT]->Step`.\nMATCH (t:Task {id: $task_id})\nMERGE (s:Step {id: $id})\nON CREATE SET\n  s.task_id = $task_id,\n  s.order = $order,\n  s.description = $description,\n  s.status = $status,\n  s.started_at = $started_at,\n  s.completed_at = $completed_at\nON MATCH SET\n  s.status = $status,\n  s.completed_at = $completed_at\nMERGE (t)-[:HAS_STEP]->(s)\nWITH t, s\nOPTIONAL MATCH (t)-[:HAS_STEP]->(prev:Step {order: s.order - 1})\nFOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END | MERGE (prev)-[:NEXT]->(s))\nRETURN s\n",
+        "params": {
+          "id": "step_1",
+          "task_id": "demo-task",
+          "order": 0,
+          "description": "read repo docs",
+          "status": "started",
+          "started_at": "2026-08-03T17:00:03.000Z",
+          "completed_at": null
+        },
+        "source_event_type": "note",
+        "nodes_created": 1,
+        "relationships_created": 1,
+        "properties_set": 6
+      }
+    }
+  },
+  {
+    "offset": 2,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.918Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_file.cypher",
+        "query": "// F1: idempotent write for file_save / diff events (root EXECUTION.md Section 2: `(:File\n// {path})`, edge `Step-[:MODIFIES]->File`). File nodes are keyed purely by path, so touching the\n// same file across steps/tasks converges on one node — File.path is process-wide, not per-task,\n// which is intentional: it's what makes \"which steps/tasks touched this file\" answerable later.\nMATCH (s:Step {id: $step_id})\nMERGE (f:File {path: $path})\nMERGE (s)-[:MODIFIES]->(f)\nRETURN f\n",
+        "params": {
+          "step_id": "step_1",
+          "path": "capture/src/read_repo_docs.ts"
+        },
+        "source_event_type": "file_save",
+        "nodes_created": 1,
+        "relationships_created": 1,
+        "properties_set": 1
+      }
+    }
+  },
+  {
+    "offset": 3,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.918Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_file.cypher",
+        "query": "// F1: idempotent write for file_save / diff events (root EXECUTION.md Section 2: `(:File\n// {path})`, edge `Step-[:MODIFIES]->File`). File nodes are keyed purely by path, so touching the\n// same file across steps/tasks converges on one node — File.path is process-wide, not per-task,\n// which is intentional: it's what makes \"which steps/tasks touched this file\" answerable later.\nMATCH (s:Step {id: $step_id})\nMERGE (f:File {path: $path})\nMERGE (s)-[:MODIFIES]->(f)\nRETURN f\n",
+        "params": {
+          "step_id": "step_1",
+          "path": "capture/src/read_repo_docs.ts"
+        },
+        "source_event_type": "diff",
+        "nodes_created": 0,
+        "relationships_created": 0,
+        "properties_set": 0
+      }
+    }
+  },
+  {
+    "offset": 4,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.919Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_step.cypher",
+        "query": "// F1: idempotent write for step_started / step_completed events (root EXECUTION.md Section 2:\n// `(:Step {id, order, description, status})`).\n//\n// HAS_STEP is a deliberate addition beyond Section 2's illustrative edge list — see the note atop\n// src/shared/graph-contract.ts for why Task needs a direct edge to its Steps for F2 to work.\n// NEXT chains steps in the order they started, matching Section 2's `Step-[:NEXT]->Step`.\nMATCH (t:Task {id: $task_id})\nMERGE (s:Step {id: $id})\nON CREATE SET\n  s.task_id = $task_id,\n  s.order = $order,\n  s.description = $description,\n  s.status = $status,\n  s.started_at = $started_at,\n  s.completed_at = $completed_at\nON MATCH SET\n  s.status = $status,\n  s.completed_at = $completed_at\nMERGE (t)-[:HAS_STEP]->(s)\nWITH t, s\nOPTIONAL MATCH (t)-[:HAS_STEP]->(prev:Step {order: s.order - 1})\nFOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END | MERGE (prev)-[:NEXT]->(s))\nRETURN s\n",
+        "params": {
+          "id": "step_1",
+          "task_id": "demo-task",
+          "order": 0,
+          "description": "read repo docs",
+          "status": "completed",
+          "started_at": "2026-08-03T17:00:53.000Z",
+          "completed_at": "2026-08-03T17:00:53.000Z"
+        },
+        "source_event_type": "note",
+        "nodes_created": 0,
+        "relationships_created": 0,
+        "properties_set": 2
+      }
+    }
+  },
+  {
+    "offset": 5,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.919Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_step.cypher",
+        "query": "// F1: idempotent write for step_started / step_completed events (root EXECUTION.md Section 2:\n// `(:Step {id, order, description, status})`).\n//\n// HAS_STEP is a deliberate addition beyond Section 2's illustrative edge list — see the note atop\n// src/shared/graph-contract.ts for why Task needs a direct edge to its Steps for F2 to work.\n// NEXT chains steps in the order they started, matching Section 2's `Step-[:NEXT]->Step`.\nMATCH (t:Task {id: $task_id})\nMERGE (s:Step {id: $id})\nON CREATE SET\n  s.task_id = $task_id,\n  s.order = $order,\n  s.description = $description,\n  s.status = $status,\n  s.started_at = $started_at,\n  s.completed_at = $completed_at\nON MATCH SET\n  s.status = $status,\n  s.completed_at = $completed_at\nMERGE (t)-[:HAS_STEP]->(s)\nWITH t, s\nOPTIONAL MATCH (t)-[:HAS_STEP]->(prev:Step {order: s.order - 1})\nFOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END | MERGE (prev)-[:NEXT]->(s))\nRETURN s\n",
+        "params": {
+          "id": "step_2",
+          "task_id": "demo-task",
+          "order": 1,
+          "description": "reproduce the bug",
+          "status": "started",
+          "started_at": "2026-08-03T17:00:58.000Z",
+          "completed_at": null
+        },
+        "source_event_type": "note",
+        "nodes_created": 1,
+        "relationships_created": 2,
+        "properties_set": 6
+      }
+    }
+  },
+  {
+    "offset": 6,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.919Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_decision.cypher",
+        "query": "// F1: idempotent write for \"note\" events with kind=decision. Part of the Task -> Step -> Decision\n// chain that F2 (context reconstruction) walks. Field names and the edge direction\n// (Decision-[:MADE_DURING]->Step) match root EXECUTION.md Section 2 exactly.\n//\n// $embedding is null until an embedding provider is wired up (see the F4 blocker note in\n// execution/CLAUDECODE_1_CAPTURE_MEMORY.md) — the property exists from the start so a later\n// backfill is a plain UPDATE, not a schema migration.\nMATCH (s:Step {id: $step_id})\nMERGE (d:Decision {id: $id})\nON CREATE SET\n  d.task_id = $task_id,\n  d.step_id = $step_id,\n  d.text = $text,\n  d.reasoning = $reasoning,\n  d.embedding = $embedding,\n  d.created_at = $created_at\nMERGE (d)-[:MADE_DURING]->(s)\nRETURN d\n",
+        "params": {
+          "id": "step_2:decision:2026-08-03T17:01:10.000Z",
+          "task_id": "demo-task",
+          "step_id": "step_2",
+          "text": "use MERGE instead of CREATE for graph writes",
+          "reasoning": "replay safety on consumer restart",
+          "embedding": null,
+          "created_at": "2026-08-03T17:01:10.000Z"
+        },
+        "source_event_type": "note",
+        "nodes_created": 1,
+        "relationships_created": 1,
+        "properties_set": 6
+      }
+    }
+  },
+  {
+    "offset": 7,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.920Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_file.cypher",
+        "query": "// F1: idempotent write for file_save / diff events (root EXECUTION.md Section 2: `(:File\n// {path})`, edge `Step-[:MODIFIES]->File`). File nodes are keyed purely by path, so touching the\n// same file across steps/tasks converges on one node — File.path is process-wide, not per-task,\n// which is intentional: it's what makes \"which steps/tasks touched this file\" answerable later.\nMATCH (s:Step {id: $step_id})\nMERGE (f:File {path: $path})\nMERGE (s)-[:MODIFIES]->(f)\nRETURN f\n",
+        "params": {
+          "step_id": "step_2",
+          "path": "capture/src/reproduce_the_bug.ts"
+        },
+        "source_event_type": "file_save",
+        "nodes_created": 1,
+        "relationships_created": 1,
+        "properties_set": 1
+      }
+    }
+  },
+  {
+    "offset": 8,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.920Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_file.cypher",
+        "query": "// F1: idempotent write for file_save / diff events (root EXECUTION.md Section 2: `(:File\n// {path})`, edge `Step-[:MODIFIES]->File`). File nodes are keyed purely by path, so touching the\n// same file across steps/tasks converges on one node — File.path is process-wide, not per-task,\n// which is intentional: it's what makes \"which steps/tasks touched this file\" answerable later.\nMATCH (s:Step {id: $step_id})\nMERGE (f:File {path: $path})\nMERGE (s)-[:MODIFIES]->(f)\nRETURN f\n",
+        "params": {
+          "step_id": "step_2",
+          "path": "capture/src/reproduce_the_bug.ts"
+        },
+        "source_event_type": "diff",
+        "nodes_created": 0,
+        "relationships_created": 0,
+        "properties_set": 0
+      }
+    }
+  },
+  {
+    "offset": 9,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.921Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_step.cypher",
+        "query": "// F1: idempotent write for step_started / step_completed events (root EXECUTION.md Section 2:\n// `(:Step {id, order, description, status})`).\n//\n// HAS_STEP is a deliberate addition beyond Section 2's illustrative edge list — see the note atop\n// src/shared/graph-contract.ts for why Task needs a direct edge to its Steps for F2 to work.\n// NEXT chains steps in the order they started, matching Section 2's `Step-[:NEXT]->Step`.\nMATCH (t:Task {id: $task_id})\nMERGE (s:Step {id: $id})\nON CREATE SET\n  s.task_id = $task_id,\n  s.order = $order,\n  s.description = $description,\n  s.status = $status,\n  s.started_at = $started_at,\n  s.completed_at = $completed_at\nON MATCH SET\n  s.status = $status,\n  s.completed_at = $completed_at\nMERGE (t)-[:HAS_STEP]->(s)\nWITH t, s\nOPTIONAL MATCH (t)-[:HAS_STEP]->(prev:Step {order: s.order - 1})\nFOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END | MERGE (prev)-[:NEXT]->(s))\nRETURN s\n",
+        "params": {
+          "id": "step_2",
+          "task_id": "demo-task",
+          "order": 0,
+          "description": "reproduce the bug",
+          "status": "completed",
+          "started_at": "2026-08-03T17:01:56.000Z",
+          "completed_at": "2026-08-03T17:01:56.000Z"
+        },
+        "source_event_type": "note",
+        "nodes_created": 0,
+        "relationships_created": 0,
+        "properties_set": 2
+      }
+    }
+  },
+  {
+    "offset": 10,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.921Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_step.cypher",
+        "query": "// F1: idempotent write for step_started / step_completed events (root EXECUTION.md Section 2:\n// `(:Step {id, order, description, status})`).\n//\n// HAS_STEP is a deliberate addition beyond Section 2's illustrative edge list — see the note atop\n// src/shared/graph-contract.ts for why Task needs a direct edge to its Steps for F2 to work.\n// NEXT chains steps in the order they started, matching Section 2's `Step-[:NEXT]->Step`.\nMATCH (t:Task {id: $task_id})\nMERGE (s:Step {id: $id})\nON CREATE SET\n  s.task_id = $task_id,\n  s.order = $order,\n  s.description = $description,\n  s.status = $status,\n  s.started_at = $started_at,\n  s.completed_at = $completed_at\nON MATCH SET\n  s.status = $status,\n  s.completed_at = $completed_at\nMERGE (t)-[:HAS_STEP]->(s)\nWITH t, s\nOPTIONAL MATCH (t)-[:HAS_STEP]->(prev:Step {order: s.order - 1})\nFOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END | MERGE (prev)-[:NEXT]->(s))\nRETURN s\n",
+        "params": {
+          "id": "step_3",
+          "task_id": "demo-task",
+          "order": 2,
+          "description": "write failing test",
+          "status": "started",
+          "started_at": "2026-08-03T17:02:00.000Z",
+          "completed_at": null
+        },
+        "source_event_type": "note",
+        "nodes_created": 1,
+        "relationships_created": 2,
+        "properties_set": 6
+      }
+    }
+  },
+  {
+    "offset": 11,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.922Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_blocker_encountered.cypher",
+        "query": "// F1: idempotent write for \"note\" events with kind=blocker_encountered (root EXECUTION.md\n// Section 2: `(:Blocker {id, description, resolved})`, edge `Step-[:BLOCKED_BY]->Blocker`).\n//\n// No separate Dependency node: F3's actual definition (\"Find open Blocker nodes and what\n// File/Step they touch\") is answered by walking Step-[:BLOCKED_BY]->Blocker and\n// Step-[:MODIFIES]->File from the same Step, not by a blocker->dependency edge.\nMATCH (s:Step {id: $step_id})\nMERGE (b:Blocker {id: $id})\nON CREATE SET\n  b.task_id = $task_id,\n  b.step_id = $step_id,\n  b.description = $description,\n  b.resolved = $resolved,\n  b.created_at = $created_at,\n  b.resolved_at = $resolved_at\nMERGE (s)-[:BLOCKED_BY]->(b)\nRETURN b\n",
+        "params": {
+          "id": "blocker_3",
+          "task_id": "demo-task",
+          "step_id": "step_3",
+          "description": "LaserData SDK requires Node >=22.14",
+          "resolved": false,
+          "created_at": "2026-08-03T17:02:08.000Z",
+          "resolved_at": null
+        },
+        "source_event_type": "note",
+        "nodes_created": 1,
+        "relationships_created": 1,
+        "properties_set": 6
+      }
+    }
+  },
+  {
+    "offset": 12,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.922Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_decision.cypher",
+        "query": "// F1: idempotent write for \"note\" events with kind=decision. Part of the Task -> Step -> Decision\n// chain that F2 (context reconstruction) walks. Field names and the edge direction\n// (Decision-[:MADE_DURING]->Step) match root EXECUTION.md Section 2 exactly.\n//\n// $embedding is null until an embedding provider is wired up (see the F4 blocker note in\n// execution/CLAUDECODE_1_CAPTURE_MEMORY.md) — the property exists from the start so a later\n// backfill is a plain UPDATE, not a schema migration.\nMATCH (s:Step {id: $step_id})\nMERGE (d:Decision {id: $id})\nON CREATE SET\n  d.task_id = $task_id,\n  d.step_id = $step_id,\n  d.text = $text,\n  d.reasoning = $reasoning,\n  d.embedding = $embedding,\n  d.created_at = $created_at\nMERGE (d)-[:MADE_DURING]->(s)\nRETURN d\n",
+        "params": {
+          "id": "step_3:decision:2026-08-03T17:02:14.000Z",
+          "task_id": "demo-task",
+          "step_id": "step_3",
+          "text": "pin to the installed Node version instead of upgrading immediately",
+          "reasoning": "the LaserData SDK's newer Node requirement isn't worth blocking the whole task over",
+          "embedding": null,
+          "created_at": "2026-08-03T17:02:14.000Z"
+        },
+        "source_event_type": "note",
+        "nodes_created": 1,
+        "relationships_created": 1,
+        "properties_set": 6
+      }
+    }
+  },
+  {
+    "offset": 13,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.923Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_file.cypher",
+        "query": "// F1: idempotent write for file_save / diff events (root EXECUTION.md Section 2: `(:File\n// {path})`, edge `Step-[:MODIFIES]->File`). File nodes are keyed purely by path, so touching the\n// same file across steps/tasks converges on one node — File.path is process-wide, not per-task,\n// which is intentional: it's what makes \"which steps/tasks touched this file\" answerable later.\nMATCH (s:Step {id: $step_id})\nMERGE (f:File {path: $path})\nMERGE (s)-[:MODIFIES]->(f)\nRETURN f\n",
+        "params": {
+          "step_id": "step_3",
+          "path": "capture/src/write_failing_test.ts"
+        },
+        "source_event_type": "file_save",
+        "nodes_created": 1,
+        "relationships_created": 1,
+        "properties_set": 1
+      }
+    }
+  },
+  {
+    "offset": 14,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.923Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_file.cypher",
+        "query": "// F1: idempotent write for file_save / diff events (root EXECUTION.md Section 2: `(:File\n// {path})`, edge `Step-[:MODIFIES]->File`). File nodes are keyed purely by path, so touching the\n// same file across steps/tasks converges on one node — File.path is process-wide, not per-task,\n// which is intentional: it's what makes \"which steps/tasks touched this file\" answerable later.\nMATCH (s:Step {id: $step_id})\nMERGE (f:File {path: $path})\nMERGE (s)-[:MODIFIES]->(f)\nRETURN f\n",
+        "params": {
+          "step_id": "step_3",
+          "path": "capture/src/write_failing_test.ts"
+        },
+        "source_event_type": "diff",
+        "nodes_created": 0,
+        "relationships_created": 0,
+        "properties_set": 0
+      }
+    }
+  },
+  {
+    "offset": 15,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.924Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_step.cypher",
+        "query": "// F1: idempotent write for step_started / step_completed events (root EXECUTION.md Section 2:\n// `(:Step {id, order, description, status})`).\n//\n// HAS_STEP is a deliberate addition beyond Section 2's illustrative edge list — see the note atop\n// src/shared/graph-contract.ts for why Task needs a direct edge to its Steps for F2 to work.\n// NEXT chains steps in the order they started, matching Section 2's `Step-[:NEXT]->Step`.\nMATCH (t:Task {id: $task_id})\nMERGE (s:Step {id: $id})\nON CREATE SET\n  s.task_id = $task_id,\n  s.order = $order,\n  s.description = $description,\n  s.status = $status,\n  s.started_at = $started_at,\n  s.completed_at = $completed_at\nON MATCH SET\n  s.status = $status,\n  s.completed_at = $completed_at\nMERGE (t)-[:HAS_STEP]->(s)\nWITH t, s\nOPTIONAL MATCH (t)-[:HAS_STEP]->(prev:Step {order: s.order - 1})\nFOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END | MERGE (prev)-[:NEXT]->(s))\nRETURN s\n",
+        "params": {
+          "id": "step_3",
+          "task_id": "demo-task",
+          "order": 0,
+          "description": "write failing test",
+          "status": "completed",
+          "started_at": "2026-08-03T17:03:12.000Z",
+          "completed_at": "2026-08-03T17:03:12.000Z"
+        },
+        "source_event_type": "note",
+        "nodes_created": 0,
+        "relationships_created": 0,
+        "properties_set": 2
+      }
+    }
+  },
+  {
+    "offset": 16,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.924Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_step.cypher",
+        "query": "// F1: idempotent write for step_started / step_completed events (root EXECUTION.md Section 2:\n// `(:Step {id, order, description, status})`).\n//\n// HAS_STEP is a deliberate addition beyond Section 2's illustrative edge list — see the note atop\n// src/shared/graph-contract.ts for why Task needs a direct edge to its Steps for F2 to work.\n// NEXT chains steps in the order they started, matching Section 2's `Step-[:NEXT]->Step`.\nMATCH (t:Task {id: $task_id})\nMERGE (s:Step {id: $id})\nON CREATE SET\n  s.task_id = $task_id,\n  s.order = $order,\n  s.description = $description,\n  s.status = $status,\n  s.started_at = $started_at,\n  s.completed_at = $completed_at\nON MATCH SET\n  s.status = $status,\n  s.completed_at = $completed_at\nMERGE (t)-[:HAS_STEP]->(s)\nWITH t, s\nOPTIONAL MATCH (t)-[:HAS_STEP]->(prev:Step {order: s.order - 1})\nFOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END | MERGE (prev)-[:NEXT]->(s))\nRETURN s\n",
+        "params": {
+          "id": "step_4",
+          "task_id": "demo-task",
+          "order": 3,
+          "description": "implement fix",
+          "status": "started",
+          "started_at": "2026-08-03T17:03:15.000Z",
+          "completed_at": null
+        },
+        "source_event_type": "note",
+        "nodes_created": 1,
+        "relationships_created": 2,
+        "properties_set": 6
+      }
+    }
+  },
+  {
+    "offset": 17,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.925Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_file.cypher",
+        "query": "// F1: idempotent write for file_save / diff events (root EXECUTION.md Section 2: `(:File\n// {path})`, edge `Step-[:MODIFIES]->File`). File nodes are keyed purely by path, so touching the\n// same file across steps/tasks converges on one node — File.path is process-wide, not per-task,\n// which is intentional: it's what makes \"which steps/tasks touched this file\" answerable later.\nMATCH (s:Step {id: $step_id})\nMERGE (f:File {path: $path})\nMERGE (s)-[:MODIFIES]->(f)\nRETURN f\n",
+        "params": {
+          "step_id": "step_4",
+          "path": "capture/src/implement_fix.ts"
+        },
+        "source_event_type": "file_save",
+        "nodes_created": 1,
+        "relationships_created": 1,
+        "properties_set": 1
+      }
+    }
+  },
+  {
+    "offset": 18,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.925Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_file.cypher",
+        "query": "// F1: idempotent write for file_save / diff events (root EXECUTION.md Section 2: `(:File\n// {path})`, edge `Step-[:MODIFIES]->File`). File nodes are keyed purely by path, so touching the\n// same file across steps/tasks converges on one node — File.path is process-wide, not per-task,\n// which is intentional: it's what makes \"which steps/tasks touched this file\" answerable later.\nMATCH (s:Step {id: $step_id})\nMERGE (f:File {path: $path})\nMERGE (s)-[:MODIFIES]->(f)\nRETURN f\n",
+        "params": {
+          "step_id": "step_4",
+          "path": "capture/src/implement_fix.ts"
+        },
+        "source_event_type": "diff",
+        "nodes_created": 0,
+        "relationships_created": 0,
+        "properties_set": 0
+      }
+    }
+  },
+  {
+    "offset": 19,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.926Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_step.cypher",
+        "query": "// F1: idempotent write for step_started / step_completed events (root EXECUTION.md Section 2:\n// `(:Step {id, order, description, status})`).\n//\n// HAS_STEP is a deliberate addition beyond Section 2's illustrative edge list — see the note atop\n// src/shared/graph-contract.ts for why Task needs a direct edge to its Steps for F2 to work.\n// NEXT chains steps in the order they started, matching Section 2's `Step-[:NEXT]->Step`.\nMATCH (t:Task {id: $task_id})\nMERGE (s:Step {id: $id})\nON CREATE SET\n  s.task_id = $task_id,\n  s.order = $order,\n  s.description = $description,\n  s.status = $status,\n  s.started_at = $started_at,\n  s.completed_at = $completed_at\nON MATCH SET\n  s.status = $status,\n  s.completed_at = $completed_at\nMERGE (t)-[:HAS_STEP]->(s)\nWITH t, s\nOPTIONAL MATCH (t)-[:HAS_STEP]->(prev:Step {order: s.order - 1})\nFOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END | MERGE (prev)-[:NEXT]->(s))\nRETURN s\n",
+        "params": {
+          "id": "step_4",
+          "task_id": "demo-task",
+          "order": 0,
+          "description": "implement fix",
+          "status": "completed",
+          "started_at": "2026-08-03T17:03:48.000Z",
+          "completed_at": "2026-08-03T17:03:48.000Z"
+        },
+        "source_event_type": "note",
+        "nodes_created": 0,
+        "relationships_created": 0,
+        "properties_set": 2
+      }
+    }
+  },
+  {
+    "offset": 20,
+    "payload": {
+      "session_id": "demo-session",
+      "task_id": "demo-task",
+      "event_type": "graph_write",
+      "timestamp": "2026-08-03T19:10:58.926Z",
+      "payload": {
+        "graph": "task_demo-task",
+        "kind": "MERGE_NODE",
+        "cypher_file": "merge_task.cypher",
+        "query": "// F1: idempotent write for the task_started event. Replay-safe (MERGE, not CREATE) — running\n// this twice for the same $id is a no-op beyond the ON MATCH refresh.\nMERGE (t:Task {id: $id})\nON CREATE SET\n  t.session_id = $session_id,\n  t.title = $title,\n  t.status = $status,\n  t.created_at = $created_at\nON MATCH SET\n  t.status = $status\nRETURN t\n",
+        "params": {
+          "id": "demo-task",
+          "session_id": "demo-session",
+          "title": "Build capture + memory layer for Relay",
+          "status": "completed",
+          "created_at": "2026-08-03T17:04:07.000Z"
+        },
+        "source_event_type": "note",
+        "nodes_created": 0,
+        "relationships_created": 0,
+        "properties_set": 1
+      }
+    }
+  }
+]
