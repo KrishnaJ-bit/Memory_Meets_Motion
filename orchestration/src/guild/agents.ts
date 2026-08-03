@@ -296,6 +296,27 @@ export const prRiskReview: GuildAgentDefinition = {
 	},
 };
 
+/**
+ * The agents as they exist on Guild's server, created with the Guild CLI on
+ * 2026-08-03 under workspace `krishivsagrawal/relay`
+ * (019fc934-b21e-3bb9-0000-6ce317801803).
+ *
+ * The definitions above are the local orchestration contract — what triggers
+ * them, what scope they get, and what they do when this process drives them.
+ * These ids are the same agents hosted by Guild, where their system prompts and
+ * audited sessions live (`agents/<name>/agent.ts`).
+ */
+export const GUILD_AGENT_IDS: Record<string, string> = {
+	'context-summarizer': '019fc939-8d66-726e-0000-97803b16e34d',
+	'relay-resume': '019fc937-a87d-726e-0000-bdf6e8e7c06b',
+	'pr-risk-review': '019fc939-9b97-726e-0000-d9ae2351982c',
+};
+
+export const GUILD_WORKSPACE = {
+	id: '019fc934-b21e-3bb9-0000-6ce317801803',
+	slug: 'krishivsagrawal/relay',
+};
+
 export const agents: GuildAgentDefinition[] = [contextSummarizer, relayResume, prRiskReview];
 
 export function agentByName(name: string): GuildAgentDefinition | undefined {

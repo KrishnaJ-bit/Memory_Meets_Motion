@@ -149,6 +149,68 @@ export async function resetDemoRepo(): Promise<boolean> {
 	return true;
 }
 
+/**
+ * Attempt the real R2 pipeline and report exactly what happened.
+ *
+ * Returns a `live` stage only if RocketRide actually produced an answer. A
+ * missing key, a refused start, or a model-credential error all come back as
+ * `degraded` with the server's own message, so the run never overstates itself.
+ */
+async function tryRocketRideResume(input: {
+	taskId: string;
+	goal: string;
+	eventTail: number;
+}): Promise<Stage> {
+	const name = 'reason_and_code_edit';
+
+	if (!process.env.ROCKETRIDE_APIKEY) {
+		return {
+			name,
+			status: 'degraded',
+			detail:
+				'ROCKETRIDE_APIKEY is unset, so the R2 pipeline (Reason on openai-5-mini, CodeEdit on ' +
+				'claude-opus-4-6) did not run. Falling back to the fix implied by the inherited blocker.',
+		};
+	}
+
+	try {
+		const { RocketRideClient, Question } = await import('rocketride');
+		const client = new RocketRideClient();
+		await client.connect();
+
+		try {
+			const started = await client.use({
+				filepath: resolve(REPO_ROOT, 'pipeline/relay-resume.pipe'),
+				useExisting: true,
+				pipelineTraceLevel: 'summary',
+				ttl: 300,
+			});
+
+			const question = new Question();
+			question.addQuestion(`Resume task ${input.taskId}. Inherited blocker: ${input.goal}`);
+			question.addContext({ task_id: input.taskId, event_tail_size: input.eventTail });
+
+			const answer = await client.chat({ token: started.token, question });
+			const text = answer.answers?.[0];
+
+			await client.terminate(started.token).catch(() => undefined);
+
+			return text
+				? { name, status: 'live', detail: `R2 ran (token ${started.token})`, data: { answer: text } }
+				: { name, status: 'degraded', detail: `R2 started (token ${started.token}) but returned no answer.` };
+		} finally {
+			await client.disconnect().catch(() => undefined);
+		}
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		return {
+			name,
+			status: 'degraded',
+			detail: `R2 did not complete: ${message.slice(0, 220)}. Falling back to the fix implied by the inherited blocker.`,
+		};
+	}
+}
+
 export async function runAutopilot(options: AutopilotOptions = {}): Promise<AutopilotResult> {
 	const taskId = options.taskId ?? DEMO_TASK_ID;
 	const sessionId = options.sessionId ?? `autopilot-${Date.now()}`;
@@ -207,17 +269,13 @@ export async function runAutopilot(options: AutopilotOptions = {}): Promise<Auto
 		const inherited = openBlockers[0];
 		const blockerDescription = inherited?.blocker_description ?? 'boundary refill failure at exactly 1000 ms';
 
-		// 3. Reason + CodeEdit — RocketRide R2 when credentials exist.
-		const hasRocketRide = Boolean(process.env.ROCKETRIDE_APIKEY);
-		if (!hasRocketRide) {
-			await stage({
-				name: 'reason_and_code_edit',
-				status: 'degraded',
-				detail:
-					'ROCKETRIDE_APIKEY is unset, so the R2 pipeline (Reason on openai-5-mini, CodeEdit on claude-opus-4-6) did not run. ' +
-					'Applying the deterministic fix implied by the inherited blocker instead.',
-			});
-		}
+		// 3. Reason + CodeEdit — really attempt RocketRide R2 when a key is present.
+		//
+		// It is not enough to check that a key exists and then quietly apply the
+		// local fix: that would imply the pipeline ran. Attempt it, report what
+		// actually happened, and only then fall back.
+		const r2 = await tryRocketRideResume({ taskId, goal: blockerDescription, eventTail: tail.length });
+		await stage(r2);
 
 		// 4. TestRunner with a retry loop — the tests are always run for real.
 		let attempts = 0;
