@@ -85,8 +85,8 @@ async function runTests(): Promise<{ passed: boolean; output: string }> {
 /**
  * The code edit.
  *
- * With RocketRide credentials this is R2's job (reason on the cheap model, patch
- * on the strong one). Without them there is no LLM to call, so we fall back to
+ * With RocketRide credentials this is R2's job (reason on claude-haiku-4-5, patch
+ * on claude-opus-4-6). Without them there is no LLM to call, so we fall back to
  * the fix the inherited blocker already describes: the refill comparison excludes
  * the exact boundary. The fallback is deterministic and clearly labelled — it is
  * not RocketRide, and the demo says so.
@@ -168,7 +168,7 @@ async function tryRocketRideResume(input: {
 			name,
 			status: 'degraded',
 			detail:
-				'ROCKETRIDE_APIKEY is unset, so the R2 pipeline (Reason on openai-5-mini, CodeEdit on ' +
+				'ROCKETRIDE_APIKEY is unset, so the R2 pipeline (Reason on claude-haiku-4-5, CodeEdit on ' +
 				'claude-opus-4-6) did not run. Falling back to the fix implied by the inherited blocker.',
 		};
 	}

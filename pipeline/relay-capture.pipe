@@ -89,7 +89,7 @@
           "You receive a summary of a batch of raw developer-session events captured on the LaserData stream 'dev.session.events' (L1).",
           "Extract the structured decisions the developer made: what was tried, what was rejected, the reason for each switch, any blocker hit, and the next step that was pending when the session paused.",
           "Return a JSON object with a single key 'decisions' holding an array. Each element must have: decision_id, task_id, session_id, text, reasoning, related_files (array), blocker (string or null), next_step (string or null).",
-          "Return the decisions as your answer and nothing else. The calling Guild agent publishes them to LaserData topic 'relay.graph.mutations' (L2) through the LaserData SDK — LaserData speaks Apache Iggy over TCP, not HTTP, so there is no endpoint for you to call and no HTTP tool on this pipeline.",
+          "Return the decisions as your answer and nothing else. The calling Guild agent publishes them to LaserData topic 'relay.graph.mutations' (L2) through the LaserData SDK \u2014 LaserData speaks Apache Iggy over TCP, not HTTP, so there is no endpoint for you to call and no HTTP tool on this pipeline.",
           "Use ISO-8601 UTC timestamps. Never invent a task_id or session_id that was not present in the input."
         ],
         "max_waves": 6,
@@ -140,12 +140,12 @@
       }
     },
     {
-      "id": "llm_openai_1",
-      "provider": "llm_openai",
+      "id": "llm_anthropic_1",
+      "provider": "llm_anthropic",
       "config": {
-        "profile": "openai-5-nano",
-        "openai-5-nano": {
-          "apikey": "${ROCKETRIDE_OPENAI_KEY}"
+        "profile": "claude-haiku-4-5",
+        "claude-haiku-4-5": {
+          "apikey": "${ROCKETRIDE_ANTHROPIC_KEY}"
         },
         "parameters": {}
       },

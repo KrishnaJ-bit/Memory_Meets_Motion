@@ -30,10 +30,10 @@
         "instructions": [
           "You are resuming an interrupted developer task. The incoming question carries the task_id and the human-readable goal.",
           "FetchGraphContext: use the FalkorDB tool (read-only) against the per-task graph to rebuild context. Run all three read patterns: (F2) MATCH (t:Task {id:$task_id})<-[:PART_OF]-(s:Session), (t)<-[:PART_OF]-(:Session), and the Step/Decision chain via (st:Step)-[:NEXT*]->(:Step) and (d:Decision)-[:MADE_DURING]->(st); (F3) open blockers via (st)-[:BLOCKED_BY]->(b:Blocker {resolved:false}) and the files they touch; (F4) similar previously-resolved Decision nodes as precedent.",
-          "ReplayEventTail: the question context carries 'event_tail' — the raw L1 events replayed from the offset named in 'replay_offset', read straight off the LaserData log rather than from anyone's memory. Reconcile that tail against the graph context and call out anything the graph missed. Do not try to fetch it yourself: LaserData speaks Apache Iggy over TCP, not HTTP, so there is no endpoint for an agent tool to call.",
-          "Reason: produce an explicit plan — what was inherited, what is still missing, and the smallest change that finishes the task. Keep this step on the cheap model; do not write code here.",
+          "ReplayEventTail: the question context carries 'event_tail' \u2014 the raw L1 events replayed from the offset named in 'replay_offset', read straight off the LaserData log rather than from anyone's memory. Reconcile that tail against the graph context and call out anything the graph missed. Do not try to fetch it yourself: LaserData speaks Apache Iggy over TCP, not HTTP, so there is no endpoint for an agent tool to call.",
+          "Reason: produce an explicit plan \u2014 what was inherited, what is still missing, and the smallest change that finishes the task. Keep this step on the cheap model; do not write code here.",
           "CodeEdit + TestRunner + retry: delegate the actual patch to the 'relay-code-editor' sub-agent tool. Pass it the plan, the target files, and the failing-test signal. If it reports a failing test, revise the plan and delegate again. Stop after three failed delegations and report the failure honestly instead of opening a PR.",
-          "Your actions are already recorded on LaserData topic 'relay.agent.actions' (L3): the orchestration layer subscribes to this pipeline's component traces and publishes one record per node execution through the LaserData SDK. Narrate each step clearly — graph query issued, tail reconciled, plan produced, delegation made — because that narration is what lands in the audit trail.",
+          "Your actions are already recorded on LaserData topic 'relay.agent.actions' (L3): the orchestration layer subscribes to this pipeline's component traces and publishes one record per node execution through the LaserData SDK. Narrate each step clearly \u2014 graph query issued, tail reconciled, plan produced, delegation made \u2014 because that narration is what lands in the audit trail.",
           "NotifySlack: once the sub-agent reports a merged-ready PR, POST a short summary (task_id, PR URL, tests passed, retries used) to the Slack webhook tool.",
           "Never claim a test passed that you did not see pass. If the sub-agent could not open a PR, say so."
         ],
@@ -85,12 +85,12 @@
       }
     },
     {
-      "id": "llm_openai_1",
-      "provider": "llm_openai",
+      "id": "llm_anthropic_reason",
+      "provider": "llm_anthropic",
       "config": {
-        "profile": "openai-5-mini",
-        "openai-5-mini": {
-          "apikey": "${ROCKETRIDE_OPENAI_KEY}"
+        "profile": "claude-haiku-4-5",
+        "claude-haiku-4-5": {
+          "apikey": "${ROCKETRIDE_ANTHROPIC_KEY}"
         },
         "parameters": {}
       },
@@ -249,7 +249,7 @@
       }
     },
     {
-      "id": "llm_anthropic_1",
+      "id": "llm_anthropic_codeedit",
       "provider": "llm_anthropic",
       "config": {
         "profile": "claude-opus-4-6",

@@ -24,7 +24,7 @@ webhook → summarization → question → agent_rocketride → response_answers
 | `summarization_1`   | `summarization`     | Summarize(LLM) — compresses the batch                            |
 | `question_1`        | `question`          | text → questions, so the emitter agent can consume the summary   |
 | `agent_rocketride_1`| `agent_rocketride`  | EmitDecision — returns structured decisions as its answer        |
-| `llm_openai_1`      | `llm_openai`        | `openai-5-nano`, shared by the summarizer and the agent          |
+| `llm_anthropic_1`   | `llm_anthropic`     | `claude-haiku-4-5`, shared by the summarizer and the agent       |
 
 The agent does **not** publish to LaserData itself. LaserData's SDK speaks Apache
 Iggy over TCP, so no RocketRide HTTP tool can reach it; the G1 Guild agent takes
@@ -37,21 +37,22 @@ with `client.chat()`.
 
 ```text
 chat → agent_rocketride_1 (Reason) → response_answers
-         ├── llm_openai_1        openai-5-mini      ← cheap/fast model
+         ├── llm_anthropic_reason  claude-haiku-4-5 ← cheap/fast model
          ├── memory_internal_1
          ├── tool_falkordb_1     read-only          ← FetchGraphContext (F2/F3/F4)
          ├── tool_http_request_1 Slack              ← NotifySlack
          └── agent_rocketride_2 (CodeEdit, invoked as a tool)
-               ├── llm_anthropic_1  claude-opus-4-6 ← stronger model
+               ├── llm_anthropic_codeedit  claude-opus-4-6 ← stronger model
                ├── memory_internal_2
                ├── tool_python_1    TestRunner
                ├── tool_github_1    OpenPR
                └── tool_falkordb_2  write-enabled   ← F6 agent write-back
 ```
 
-**Multi-model routing** is the `llm_openai_1` / `llm_anthropic_1` split: the
-reasoning agent plans on the cheap model, and only the code-edit sub-agent gets
-the expensive one.
+**Multi-model routing** is the `claude-haiku-4-5` / `claude-opus-4-6` split: the
+reasoning agent plans on the cheap, fast model, and only the code-edit sub-agent
+gets the expensive one. Both pipelines run entirely on Claude, so one Anthropic
+key powers the whole system.
 
 **ReplayEventTail is not a node.** LaserData's SDK is Iggy-over-TCP, so nothing
 inside a RocketRide pipeline can read the log. The G2 Guild agent replays the L1
