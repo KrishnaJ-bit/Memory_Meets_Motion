@@ -3,6 +3,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { runAutopilot } from "../demo/relay/autopilot.js";
+
 const root = path.resolve("demo/autopilot-monitor");
 const eventDir = path.join(root, "events");
 const port = Number(process.env.AUTOPILOT_DEMO_PORT ?? 4173);
@@ -48,19 +50,40 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, url
   }
 
   if (url.pathname === "/api/autopilot/start") {
+    // This used to return a canned list of what autopilot *would* do. It now
+    // actually runs it: replay the L1 tail, rebuild context from the graph,
+    // patch the code, run the real test suite, and write the agent's work back
+    // to FalkorDB. Each stage reports whether it ran live or degraded.
+    const handoff = body as { task_id?: string; payload?: { idle_ms?: number; reason?: string } };
+    const startedAt = new Date().toISOString();
+
+    let run: Awaited<ReturnType<typeof runAutopilot>> | undefined;
+    let failure: string | undefined;
+    try {
+      run = await runAutopilot({ taskId: handoff.task_id, replayOffset: 0 });
+    } catch (error) {
+      failure = error instanceof Error ? error.message : String(error);
+    }
+
     const autopilotRun = {
       autopilot_id: `autopilot-${Date.now()}`,
-      mode: "active",
+      mode: run?.testsPassed ? "completed" : failure ? "failed" : "finished_with_failures",
+      started_at: startedAt,
       received: body,
-      next_actions: [
-        "emit developer_absent to LaserData dev.session.events",
-        "trigger Guild.ai relay-resume",
-        "start RocketRide relay-resume-pipeline",
-        "write agent-authored Step and Decision nodes to FalkorDB"
-      ]
+      result: run
+        ? {
+            tests_passed: run.testsPassed,
+            attempts: run.attempts,
+            patch_applied: run.patchApplied,
+            graph: run.graph,
+            l3_records: run.l3Records,
+            stages: run.stages.map((stage) => ({ name: stage.name, status: stage.status, detail: stage.detail }))
+          }
+        : { error: failure }
     };
+
     await appendJsonl("autopilot-handoffs.jsonl", autopilotRun);
-    send(response, 200, JSON.stringify(autopilotRun), "application/json; charset=utf-8");
+    send(response, run || !failure ? 200 : 500, JSON.stringify(autopilotRun), "application/json; charset=utf-8");
     return;
   }
 

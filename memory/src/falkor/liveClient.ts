@@ -108,7 +108,19 @@ export class LiveFalkorClient implements FalkorGraphClient {
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
     for (const statement of statements) {
-      await g.query(statement);
+      try {
+        await g.query(statement);
+      } catch (error) {
+        // FalkorDB has no CREATE INDEX IF NOT EXISTS: re-running the schema on a
+        // graph that already has its indexes raises "Attribute 'x' is already
+        // indexed". The schema is meant to be applied idempotently once per
+        // graph (see schema.cypher), so that specific error is the success case
+        // on every run after the first. Anything else is a real failure.
+        const message = error instanceof Error ? error.message : String(error);
+        if (!/already indexed|already exists/i.test(message)) {
+          throw error;
+        }
+      }
     }
   }
 

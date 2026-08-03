@@ -10,6 +10,7 @@
 // pipeline aborted mid-wave.
 
 import { FalkorDB } from 'falkordb';
+import { graphNameForTask as sharedGraphNameForTask } from '../../src/shared/graph-contract.js';
 import { config } from './config.js';
 
 export interface AgentStep {
@@ -44,10 +45,15 @@ function countFromMetadata(metadata: string[] | undefined, key: string): number 
 	return Number.isFinite(value) ? value : 0;
 }
 
-/** Per-task graph (F5): one graph per active task, not one shared graph. */
-export function graphNameForTask(taskId: string): string {
-	return `${config.falkordb.graph}:${taskId}`;
-}
+/**
+ * Per-task graph (F5): one graph per active task, not one shared graph.
+ *
+ * This MUST match Track 1's `src/shared/graph-contract.ts`. An earlier version
+ * computed `${prefix}:${taskId}` here, which meant the agent's F6 write-back
+ * landed in a different graph than the F1 writes it was supposed to be closing
+ * the loop on — the demo would have shown an empty agent contribution.
+ */
+export const graphNameForTask = sharedGraphNameForTask;
 
 export class FalkorWriteBack {
 	private db?: FalkorDB;

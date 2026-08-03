@@ -141,38 +141,43 @@ export async function consumeL1ToGraph(fromOffset = 0): Promise<ConsumeSummary> 
   const graphsTouched = new Set<string>();
   let mutationsApplied = 0;
 
-  for (const record of records) {
-    const event = record.payload;
-    assertDevSessionEvent(event);
-    const applied = await applyEvent(falkor, event);
-    if (!applied) continue;
+  // Both clients must close even when a mutation throws: a live FalkorDB client
+  // holds an open socket, so an escaping error would otherwise leave the process
+  // hanging instead of failing.
+  try {
+    for (const record of records) {
+      const event = record.payload;
+      assertDevSessionEvent(event);
+      const applied = await applyEvent(falkor, event);
+      if (!applied) continue;
 
-    graphsTouched.add(applied.graph);
-    mutationsApplied++;
+      graphsTouched.add(applied.graph);
+      mutationsApplied++;
 
-    const mutationPayload: GraphMutationPayload = {
-      graph: applied.graph,
-      kind: applied.kind,
-      cypher_file: applied.cypherFile,
-      query: await cypherText(applied.cypherFile),
-      params: applied.params,
-      source_event_type: event.event_type,
-      nodes_created: applied.result.nodesCreated,
-      relationships_created: applied.result.relationshipsCreated,
-      properties_set: applied.result.propertiesSet,
-    };
-    const mutationEvent: DevSessionEvent<GraphMutationPayload> = {
-      session_id: event.session_id,
-      task_id: event.task_id,
-      event_type: "graph_write",
-      timestamp: new Date().toISOString(),
-      payload: mutationPayload,
-    };
-    await laser.publish(L2_STREAM, L2_TOPIC, mutationEvent);
+      const mutationPayload: GraphMutationPayload = {
+        graph: applied.graph,
+        kind: applied.kind,
+        cypher_file: applied.cypherFile,
+        query: await cypherText(applied.cypherFile),
+        params: applied.params,
+        source_event_type: event.event_type,
+        nodes_created: applied.result.nodesCreated,
+        relationships_created: applied.result.relationshipsCreated,
+        properties_set: applied.result.propertiesSet,
+      };
+      const mutationEvent: DevSessionEvent<GraphMutationPayload> = {
+        session_id: event.session_id,
+        task_id: event.task_id,
+        event_type: "graph_write",
+        timestamp: new Date().toISOString(),
+        payload: mutationPayload,
+      };
+        await laser.publish(L2_STREAM, L2_TOPIC, mutationEvent);
+    }
+  } finally {
+    await falkor.close();
+    await laser.close();
   }
-
-  await falkor.close();
-  await laser.close();
 
   return { eventsProcessed: records.length, mutationsApplied, graphsTouched: [...graphsTouched] };
 }
