@@ -1,0 +1,26 @@
+{
+  "name": "@relay/orchestration",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Guild.ai agents + RocketRide pipeline runners for Relay (Track 2).",
+  "scripts": {
+    "check": "tsx src/check.ts",
+    "capture": "tsx src/run_capture.ts",
+    "resume": "tsx src/run_resume.ts",
+    "trace": "tsx src/trace_ingest.ts",
+    "guild:register": "tsx src/guild/register.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@laserdata/laser-sdk": "^0.0.1",
+    "dotenv": "^17.0.0",
+    "falkordb": "^6.7.0",
+    "rocketride": "^1.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

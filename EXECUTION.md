@@ -182,18 +182,25 @@ need real evidence rows in Section 4.
 
 ### Phase 3 — Orchestration layer (Hour 3–5) — covers G1–G3
 
-- [ ] Define `context-summarizer` (G1) — wire to R1
-- [ ] Define `relay-resume` (G2) with scoped GitHub credentials
-- [ ] Define `pr-risk-review` (G3), triggered off G2's PR event
-- [ ] Register manual + idle-timeout triggers
+- [x] Define `context-summarizer` (G1) — wire to R1 — `orchestration/src/guild/agents.ts`
+- [x] Define `relay-resume` (G2) with scoped GitHub credentials — scope enforced at runtime;
+      the agent refuses to start if the token reaches any repo beyond `ROCKETRIDE_TARGET_REPO`
+- [x] Define `pr-risk-review` (G3), triggered off G2's PR event
+- [x] Register manual + idle-timeout triggers — `npm run guild:register`
+- [ ] `[blocked]` Register them with Guild itself — `@guild-ai/sdk` does not exist on npm and no
+      Guild credentials are set; agents currently register against the local audit transport
 
 ### Phase 4 — Execution layer (Hour 3.5–6) — covers R1, R2
 
-- [ ] Build R1 (capture-side summarization pipeline)
-- [ ] Build R2 node by node: FetchGraphContext → ReplayEventTail → Reason → CodeEdit → TestRunner
-      → retry loop → OpenPR → NotifySlack
-- [ ] Wire multi-model routing
-- [ ] Confirm agent write-back to FalkorDB (F6) and to `relay.agent.actions` (L3)
+- [x] Build R1 (capture-side summarization pipeline) — `pipeline/relay-capture.pipe`
+- [x] Build R2 node by node: FetchGraphContext → ReplayEventTail → Reason → CodeEdit → TestRunner
+      → retry loop → OpenPR → NotifySlack — `pipeline/relay-resume.pipe`. The retry loop is the
+      code-edit sub-agent's wave loop; RocketRide pipelines are DAGs so a back-edge to Reason is
+      not expressible
+- [x] Wire multi-model routing — `openai-5-mini` for Reason, `claude-opus-4-6` for CodeEdit
+- [ ] Confirm agent write-back to FalkorDB (F6) and to `relay.agent.actions` (L3) — code paths
+      built (`orchestration/src/falkordb.ts`, `orchestration/src/trace_ingest.ts`); confirmation
+      needs a live run
 
 ### Phase 5 — Integration (Hour 6–6.5)
 
@@ -236,7 +243,15 @@ query, session, or trace evidence.
 | 10 | 2026-08-03 12:55 PDT | 1, 2 | LaserData | Session simulator + L1/L2 streams | Published 27 events/session to `dev.session.events` for two tasks (`task_alpha`, `task_beta`); replayed from offset 10; consumer mirrored 44 graph writes to `relay.graph.mutations` as `graph_write` envelope events. Fixture mode (no live LaserData endpoint on this machine — `[blocked]`, see `execution/CLAUDECODE_1_CAPTURE_MEMORY.md`), real SDK adapter written and verified against the installed `@laserdata/laser-sdk@0.0.1` package. | `execution/evidence/simulate_session.out`, `replay_l1_offset10.out`, `replay_l2_sample.out` | done (fixture mode) |
 | 11 | 2026-08-03 12:55 PDT | 2 | FalkorDB | F1-F5 | MERGE-only writes for Task/Step/Decision/File/Blocker; F2/F3/F4/F5 each run and returned real results, including a real F4 cross-graph hit and F5 isolation across two simultaneous task graphs; re-ran the consumer from offset 0 a second time and confirmed node counts were unchanged (idempotent replay). Fixture mode (no Docker/FalkorDB Cloud credentials — `[blocked]` for the FalkorDB Browser screenshot specifically), real adapter written and verified against the installed `falkordb@6.7.0` package. | `execution/evidence/inspect_graph_f2_f3_f4_f5.out`, `seed_graph_first_run.out`, `seed_graph_replay_idempotent.out` | done (fixture mode) |
 | 12 | 2026-08-03 13:05 PDT | 3 | Guild.ai, RocketRide | Handoff fixtures | Packaged `fixtures/` (L1 event fixture, L2 mutation sample, F2/F3 sample output) plus `fixtures/README.md` documenting the event/graph contract and query function signatures for Track 2/3 to integrate against. | `fixtures/README.md`, `fixtures/*.json` | done |
+| 13 | 2026-08-03 11:34 PDT | 0 | Guild.ai, LaserData, RocketRide, FalkorDB | SDK verification | Checked every assumed package against the live npm registry before writing calls, as AGENTS.md requires | `rocketride@1.3.0` and `falkordb@6.7.0` resolve; `@guild-ai/sdk`, `laserdata`, `@laserdata/client`, `laserdata-client` all return npm 404 | done |
+| 14 | 2026-08-03 11:48 PDT | 4 | RocketRide | R1 + R2 pipeline definitions | Rewrote both `.pipe` files against the extension's component schemas; built a catalog-driven offline validator and confirmed it rejects a broken pipeline | `pipeline/relay-capture.pipe`, `pipeline/relay-resume.pipe`, `orchestration/src/pipeline_lint.ts`; `npm run check` reports both pipelines structurally valid; negative test produced 3 correct errors | done (definitions only — no run token yet) |
+| 15 | 2026-08-03 11:52 PDT | 3 | Guild.ai | G1/G2/G3 + triggers | Implemented all three agents with real run bodies and an audited-session runner; registered both trigger types | `orchestration/src/guild/`, `evidence/guild-sessions.jsonl`; `npm run guild:register` → 3 agents, 5 triggers (local transport) | done (local — does not satisfy the Guild dashboard requirement) |
+| 16 | 2026-08-03 11:58 PDT | 3 | Guild.ai, RocketRide | Credential-scope gate | Ran G2 with no credentials; it refused to start rather than running unscoped, and G1 refused on the missing LaserData URL | `npm run resume` → `"Refused to run: ROCKETRIDE_TARGET_REPO is unset — refusing to run an unscoped agent."` | done |
 | | | | | | | | |
+
+**Open against Section 1 from Track 2:** every runtime row for LaserData L3 offsets, FalkorDB
+F6 nodes, Guild session ids, and RocketRide run/trace ids is still unfilled. They need `.env`
+credentials and a frozen demo repo (Section 5), not more code.
 
 ---
 

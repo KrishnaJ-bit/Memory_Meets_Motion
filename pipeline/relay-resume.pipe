@@ -1,0 +1,412 @@
+{
+  "components": [
+    {
+      "id": "chat_1",
+      "provider": "chat",
+      "config": {
+        "hideForm": true,
+        "mode": "Source",
+        "parameters": {},
+        "type": "chat"
+      },
+      "ui": {
+        "position": {
+          "x": 20,
+          "y": 200
+        },
+        "measured": {
+          "width": 150,
+          "height": 66
+        },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "agent_rocketride_1",
+      "provider": "agent_rocketride",
+      "config": {
+        "agent_description": "Relay resume reasoner. Rebuilds the context of an interrupted development task from the FalkorDB memory graph plus the LaserData event tail, plans the remaining work, and delegates the code change to the code-edit sub-agent.",
+        "instructions": [
+          "You are resuming an interrupted developer task. The incoming question carries the task_id and the human-readable goal.",
+          "FetchGraphContext: use the FalkorDB tool (read-only) against the per-task graph to rebuild context. Run all three read patterns: (F2) MATCH (t:Task {id:$task_id})<-[:PART_OF]-(s:Session), (t)<-[:PART_OF]-(:Session), and the Step/Decision chain via (st:Step)-[:NEXT*]->(:Step) and (d:Decision)-[:MADE_DURING]->(st); (F3) open blockers via (st)-[:BLOCKED_BY]->(b:Blocker {resolved:false}) and the files they touch; (F4) similar previously-resolved Decision nodes as precedent.",
+          "ReplayEventTail: the question context carries 'event_tail' — the raw L1 events replayed from the offset named in 'replay_offset', read straight off the LaserData log rather than from anyone's memory. Reconcile that tail against the graph context and call out anything the graph missed. Do not try to fetch it yourself: LaserData speaks Apache Iggy over TCP, not HTTP, so there is no endpoint for an agent tool to call.",
+          "Reason: produce an explicit plan — what was inherited, what is still missing, and the smallest change that finishes the task. Keep this step on the cheap model; do not write code here.",
+          "CodeEdit + TestRunner + retry: delegate the actual patch to the 'relay-code-editor' sub-agent tool. Pass it the plan, the target files, and the failing-test signal. If it reports a failing test, revise the plan and delegate again. Stop after three failed delegations and report the failure honestly instead of opening a PR.",
+          "Your actions are already recorded on LaserData topic 'relay.agent.actions' (L3): the orchestration layer subscribes to this pipeline's component traces and publishes one record per node execution through the LaserData SDK. Narrate each step clearly — graph query issued, tail reconciled, plan produced, delegation made — because that narration is what lands in the audit trail.",
+          "NotifySlack: once the sub-agent reports a merged-ready PR, POST a short summary (task_id, PR URL, tests passed, retries used) to the Slack webhook tool.",
+          "Never claim a test passed that you did not see pass. If the sub-agent could not open a PR, say so."
+        ],
+        "max_waves": 12,
+        "parameters": {}
+      },
+      "input": [
+        {
+          "lane": "questions",
+          "from": "chat_1"
+        }
+      ],
+      "ui": {
+        "position": {
+          "x": 240,
+          "y": 200
+        },
+        "measured": {
+          "width": 150,
+          "height": 86
+        },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "response_answers_1",
+      "provider": "response_answers",
+      "config": {
+        "laneName": "answers"
+      },
+      "input": [
+        {
+          "lane": "answers",
+          "from": "agent_rocketride_1"
+        }
+      ],
+      "ui": {
+        "position": {
+          "x": 460,
+          "y": 200
+        },
+        "measured": {
+          "width": 150,
+          "height": 66
+        },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "llm_openai_1",
+      "provider": "llm_openai",
+      "config": {
+        "profile": "openai-5-mini",
+        "openai-5-mini": {
+          "apikey": "${ROCKETRIDE_OPENAI_KEY}"
+        },
+        "parameters": {}
+      },
+      "control": [
+        {
+          "classType": "llm",
+          "from": "agent_rocketride_1"
+        }
+      ],
+      "ui": {
+        "position": {
+          "x": 20,
+          "y": 380
+        },
+        "measured": {
+          "width": 150,
+          "height": 66
+        },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "memory_internal_1",
+      "provider": "memory_internal",
+      "config": {
+        "type": "memory_internal"
+      },
+      "control": [
+        {
+          "classType": "memory",
+          "from": "agent_rocketride_1"
+        }
+      ],
+      "ui": {
+        "position": {
+          "x": 190,
+          "y": 380
+        },
+        "measured": {
+          "width": 150,
+          "height": 66
+        },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "tool_falkordb_1",
+      "provider": "tool_falkordb",
+      "config": {
+        "type": "tool_falkordb",
+        "host": "${ROCKETRIDE_FALKORDB_HOST}",
+        "port": 6379,
+        "username": "${ROCKETRIDE_FALKORDB_USERNAME}",
+        "password": "${ROCKETRIDE_FALKORDB_PASSWORD}",
+        "tls": false,
+        "graph": "${ROCKETRIDE_FALKORDB_GRAPH}",
+        "allow_writes": false,
+        "max_rows": 250,
+        "query_timeout_ms": 30000
+      },
+      "control": [
+        {
+          "classType": "tool",
+          "from": "agent_rocketride_1"
+        }
+      ],
+      "ui": {
+        "position": {
+          "x": 360,
+          "y": 380
+        },
+        "measured": {
+          "width": 150,
+          "height": 40
+        },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "tool_http_request_1",
+      "provider": "tool_http_request",
+      "config": {
+        "type": "tool_http_request",
+        "allowGET": false,
+        "allowPOST": true,
+        "allowPUT": false,
+        "allowPATCH": false,
+        "allowDELETE": false,
+        "allowHEAD": false,
+        "allowOPTIONS": false,
+        "rateLimitPerSecond": 2,
+        "rateLimitPerMinute": 20,
+        "maxConcurrentRequests": 1,
+        "urlWhitelist": [
+          {
+            "whitelistPattern": "${ROCKETRIDE_SLACK_URL_PATTERN}"
+          }
+        ]
+      },
+      "control": [
+        {
+          "classType": "tool",
+          "from": "agent_rocketride_1"
+        }
+      ],
+      "ui": {
+        "position": {
+          "x": 530,
+          "y": 380
+        },
+        "measured": {
+          "width": 150,
+          "height": 40
+        },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "agent_rocketride_2",
+      "provider": "agent_rocketride",
+      "config": {
+        "agent_description": "Relay code editor. Given a plan from the resume reasoner, writes the patch in the target repository, runs the test suite, retries up to three times on failure, opens the pull request, and writes the agent-authored Step/Decision nodes back to the memory graph.",
+        "instructions": [
+          "You are invoked as a tool by the resume reasoner. Your input is a plan, a list of target files, and the current failing-test signal.",
+          "CodeEdit: use the GitHub tool to read the current file contents, then write the smallest patch that implements the plan on branch 'relay/resume-${ROCKETRIDE_TARGET_TASK_ID}'.",
+          "TestRunner: use the Python tool to run `npm test` with cwd `demo/toy-repo` (the command frozen in demo/scenario.json) and capture the real output. The known failure is the token-bucket limiter not refilling at exactly 1000 ms. Never report a test result you did not observe.",
+          "Retry loop: if tests fail, revise the patch and re-run. Make at most three attempts total, then stop and report the failure with the last test output.",
+          "OpenPR: only after a green test run, open a pull request via the GitHub tool. The PR body must state what was inherited from the previous session, what you changed, which tests ran, and how many attempts it took.",
+          "F6 write-back: use the write-enabled FalkorDB tool to MERGE the work you did back into the per-task graph as agent-authored nodes: MERGE (a:Agent {id:'relay-code-editor'}); MERGE (st:Step {id:$step_id}) SET st.author='agent', st.description=$description, st.status=$status; MERGE (d:Decision {id:$decision_id}) SET d.author='agent', d.text=$text, d.reasoning=$reasoning; MERGE (d)-[:MADE_DURING]->(st); MERGE (t:Task {id:$task_id})-[:RESUMED_BY]->(a). Always MERGE, never CREATE, so replay stays idempotent.",
+          "Return a structured report: { patched_files, attempts, tests_passed, pr_url, graph_nodes_written }."
+        ],
+        "max_waves": 10,
+        "parameters": {}
+      },
+      "control": [
+        {
+          "classType": "tool",
+          "from": "agent_rocketride_1"
+        }
+      ],
+      "ui": {
+        "position": {
+          "x": 870,
+          "y": 380
+        },
+        "measured": {
+          "width": 150,
+          "height": 86
+        },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "llm_anthropic_1",
+      "provider": "llm_anthropic",
+      "config": {
+        "profile": "claude-opus-4-6",
+        "claude-opus-4-6": {
+          "apikey": "${ROCKETRIDE_ANTHROPIC_KEY}"
+        },
+        "parameters": {}
+      },
+      "control": [
+        {
+          "classType": "llm",
+          "from": "agent_rocketride_2"
+        }
+      ],
+      "ui": {
+        "position": {
+          "x": 530,
+          "y": 580
+        },
+        "measured": {
+          "width": 150,
+          "height": 66
+        },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "memory_internal_2",
+      "provider": "memory_internal",
+      "config": {
+        "type": "memory_internal"
+      },
+      "control": [
+        {
+          "classType": "memory",
+          "from": "agent_rocketride_2"
+        }
+      ],
+      "ui": {
+        "position": {
+          "x": 700,
+          "y": 580
+        },
+        "measured": {
+          "width": 150,
+          "height": 66
+        },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "tool_python_1",
+      "provider": "tool_python",
+      "config": {
+        "type": "tool_python",
+        "timeout": 180,
+        "allowedModules": [
+          {
+            "moduleName": "subprocess"
+          },
+          {
+            "moduleName": "pathlib"
+          },
+          {
+            "moduleName": "os"
+          }
+        ]
+      },
+      "control": [
+        {
+          "classType": "tool",
+          "from": "agent_rocketride_2"
+        }
+      ],
+      "ui": {
+        "position": {
+          "x": 870,
+          "y": 580
+        },
+        "measured": {
+          "width": 150,
+          "height": 40
+        },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "tool_github_1",
+      "provider": "tool_github",
+      "config": {
+        "type": "tool_github",
+        "token": "${ROCKETRIDE_GITHUB_TOKEN}",
+        "defaultRepo": "${ROCKETRIDE_TARGET_REPO}",
+        "readOnly": false
+      },
+      "control": [
+        {
+          "classType": "tool",
+          "from": "agent_rocketride_2"
+        }
+      ],
+      "ui": {
+        "position": {
+          "x": 1040,
+          "y": 580
+        },
+        "measured": {
+          "width": 150,
+          "height": 40
+        },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "tool_falkordb_2",
+      "provider": "tool_falkordb",
+      "config": {
+        "type": "tool_falkordb",
+        "host": "${ROCKETRIDE_FALKORDB_HOST}",
+        "port": 6379,
+        "username": "${ROCKETRIDE_FALKORDB_USERNAME}",
+        "password": "${ROCKETRIDE_FALKORDB_PASSWORD}",
+        "tls": false,
+        "graph": "${ROCKETRIDE_FALKORDB_GRAPH}",
+        "allow_writes": true,
+        "max_rows": 250,
+        "query_timeout_ms": 30000
+      },
+      "control": [
+        {
+          "classType": "tool",
+          "from": "agent_rocketride_2"
+        }
+      ],
+      "ui": {
+        "position": {
+          "x": 1210,
+          "y": 580
+        },
+        "measured": {
+          "width": 150,
+          "height": 40
+        },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    }
+  ],
+  "project_id": "00430f57-10ff-4c9e-9bbd-1de62c23bc36",
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  },
+  "version": 1
+}
