@@ -98,7 +98,15 @@ export async function sendEventBatch(
  */
 export async function requestResume(
 	handle: RunHandle,
-	params: { taskId: string; sessionId: string; goal: string; replayOffset: number | string; targetRepo?: string }
+	params: {
+		taskId: string;
+		sessionId: string;
+		goal: string;
+		replayOffset: number | string;
+		/** L1 tail replayed by the caller — the pipeline cannot reach Iggy itself. */
+		eventTail: unknown[];
+		targetRepo?: string;
+	}
 ): Promise<PIPELINE_RESULT> {
 	const question = new Question();
 	question.addQuestion(
@@ -108,6 +116,7 @@ export async function requestResume(
 		task_id: params.taskId,
 		session_id: params.sessionId,
 		replay_offset: params.replayOffset,
+		event_tail: params.eventTail,
 		target_repo: params.targetRepo ?? config.github.targetRepo,
 		graph_hint: 'Query the per-task graph; nodes authored by humans have no author property.',
 	});

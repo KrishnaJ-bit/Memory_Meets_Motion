@@ -23,9 +23,12 @@ webhook → summarization → question → agent_rocketride → response_answers
 | `webhook_1`         | `webhook`           | Ingest a batch of L1 `dev.session.events`                        |
 | `summarization_1`   | `summarization`     | Summarize(LLM) — compresses the batch                            |
 | `question_1`        | `question`          | text → questions, so the emitter agent can consume the summary   |
-| `agent_rocketride_1`| `agent_rocketride`  | EmitDecision — structures decisions, POSTs them to L2            |
+| `agent_rocketride_1`| `agent_rocketride`  | EmitDecision — returns structured decisions as its answer        |
 | `llm_openai_1`      | `llm_openai`        | `openai-5-nano`, shared by the summarizer and the agent          |
-| `tool_http_request_1` | `tool_http_request` | LaserData publish, restricted by URL whitelist regex            |
+
+The agent does **not** publish to LaserData itself. LaserData's SDK speaks Apache
+Iggy over TCP, so no RocketRide HTTP tool can reach it; the G1 Guild agent takes
+the returned decisions and writes them to L2 through the SDK.
 
 ## R2 — `relay-resume.pipe`
 
@@ -37,8 +40,7 @@ chat → agent_rocketride_1 (Reason) → response_answers
          ├── llm_openai_1        openai-5-mini      ← cheap/fast model
          ├── memory_internal_1
          ├── tool_falkordb_1     read-only          ← FetchGraphContext (F2/F3/F4)
-         ├── tool_http_request_1 LaserData          ← ReplayEventTail + L3 emit
-         ├── tool_http_request_2 Slack              ← NotifySlack
+         ├── tool_http_request_1 Slack              ← NotifySlack
          └── agent_rocketride_2 (CodeEdit, invoked as a tool)
                ├── llm_anthropic_1  claude-opus-4-6 ← stronger model
                ├── memory_internal_2
@@ -50,6 +52,13 @@ chat → agent_rocketride_1 (Reason) → response_answers
 **Multi-model routing** is the `llm_openai_1` / `llm_anthropic_1` split: the
 reasoning agent plans on the cheap model, and only the code-edit sub-agent gets
 the expensive one.
+
+**ReplayEventTail is not a node.** LaserData's SDK is Iggy-over-TCP, so nothing
+inside a RocketRide pipeline can read the log. The G2 Guild agent replays the L1
+tail from the given offset through the SDK and hands it to R2 as `event_tail` in
+the question context — the replay is still real and still offset-based, it just
+happens one layer out. Same for L3: `orchestration/src/trace_ingest.ts` turns
+this pipeline's own component traces into `relay.agent.actions` records.
 
 **The retry loop** is the sub-agent's wave loop, not a graph cycle — RocketRide
 pipelines are DAGs, so a `TestRunner → Reason` back-edge is not expressible.

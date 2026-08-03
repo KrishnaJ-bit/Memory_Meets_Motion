@@ -80,11 +80,24 @@ written:
 |---|---|---|---|
 | RocketRide | TS SDK | `rocketride@1.3.0` exists | Installed; calls written against its actual `.d.ts` |
 | FalkorDB | official driver | `falkordb@6.7.0` exists | Installed; used for F6 write-back |
-| Guild.ai | `@guild-ai/sdk` | **404 — package does not exist** | Agents defined against a local contract; `GuildTransport` is the swap-in seam. Gateway route names in `guild/client.ts` → `ROUTES` are the only unverified surface |
-| LaserData | typed Node client | **404 — no client package found** | HTTP client against `LASERDATA_STREAM_URL` using the AGENTS.md envelope |
+| LaserData | typed Node client | **`@laserdata/laser-sdk@0.0.1` exists** | Installed; used for L1 replay and L2/L3 publish |
+| Guild.ai | `@guild-ai/sdk` | **404.** Real SDK is `@guildai/agents-sdk`, **private** | Agents defined against a local contract; `GuildTransport` is the swap-in seam. Route names in `guild/client.ts` → `ROUTES` remain unverified |
 
-This is a real blocker for the Guild evidence rows, not a styling choice: there is nothing to
-install. Confirm the gateway API with the sponsor at the venue and edit one object.
+**Correction (2026-08-03 12:04 PDT).** My first pass reported "no LaserData client package
+found" and hand-rolled an HTTP client. That was wrong: I tested `laserdata`,
+`@laserdata/client` and `laserdata-client`, but not the `@laserdata` scope. Codex's branch
+`feature/autopilot-presence-demo` had the right name. Two consequences, both now fixed:
+
+1. `orchestration/src/laserdata.ts` uses the real SDK, configured by `LASER_CONNECTION_STRING`
+   and `LASER_STREAM` (the variables `Laser.connectEnv()` actually reads).
+2. **LaserData is Iggy over TCP, not HTTP** — so the `tool_http_request` nodes I had given the
+   agents for L1 replay and L2/L3 publishing could never have worked. Those nodes are removed.
+   The replay now runs in G2 via the SDK and is handed to R2 as `event_tail` question context;
+   R1 returns decisions as its answer and G1 publishes them to L2; L3 continues to come from
+   the trace ingester. The one surviving HTTP tool is Slack.
+
+Guild is still genuinely blocked: its SDK is private and needs `guild auth login` to configure
+npm access, and the CLI is not installed on this machine.
 
 ## Design Note: the retry loop is not a graph cycle
 
@@ -113,7 +126,9 @@ Before asking Track 3 to run the end-to-end demo, provide:
 | 5 | 2026-08-03 11:52 PDT | Implemented G1/G2/G3 with real run bodies, the audited-session runner, and both trigger registrations. `npm run guild:register` printed 3 agents / 5 triggers via the local transport. | Guild.ai | `orchestration/src/guild/`, `evidence/guild-sessions.jsonl` | done (local transport — not Guild-side evidence) |
 | 6 | 2026-08-03 11:55 PDT | Implemented L3 emission from RocketRide `apaevt_flow` traces and the FalkorDB F6 write-back (MERGE-only, `author: 'agent'`). | LaserData, FalkorDB | `orchestration/src/trace_ingest.ts`, `orchestration/src/falkordb.ts` | done (code path; no live run yet) |
 | 7 | 2026-08-03 11:58 PDT | Ran the setup checker and both agent entry points with no credentials. Pipelines pass structural validation; G2 refused to start on the credential-scope gate and G1 refused on the missing stream URL — both failed closed with accurate reasons. | RocketRide, Guild.ai | `npm run check` → 2 pipelines ok, 5 credential checks failed; `npm run resume` → "Refused to run: ROCKETRIDE_TARGET_REPO is unset" | done |
-| 8 | — | Live sponsor runs (Guild sessions, RocketRide traces, L3 offsets, F6 nodes in the graph). | all four | — | blocked: no credentials in `.env`; demo repo not yet frozen (EXECUTION.md §5) |
+| 8 | 2026-08-03 12:04 PDT | Corrected the LaserData integration after Codex's branch surfaced the real package. Replaced the hand-rolled HTTP client with `@laserdata/laser-sdk`, and removed the LaserData HTTP tool nodes from both pipelines — the transport is Iggy over TCP, so those nodes could not have worked. Replay moved into G2, L2 decision writes into G1. | LaserData, RocketRide | `orchestration/src/laserdata.ts`, `pipeline/*.pipe`; `tsc` clean, both pipelines still pass the catalog validator | done |
+| 9 | 2026-08-03 12:06 PDT | Adopted the demo scenario Codex froze: target repo, task id, and the concrete `npm test --prefix demo/toy-repo` command are now in `.env.example` and the R2 code-editor instructions instead of placeholders. | RocketRide | `demo/scenario.json` (Codex), `.env.example`, `pipeline/relay-resume.pipe` | done |
+| 10 | — | Live sponsor runs (Guild sessions, RocketRide traces, L3 offsets, F6 nodes in the graph). | all four | — | blocked: no credentials in `.env`; Guild SDK is private and its CLI is not installed here |
 
 ## Change Discipline
 

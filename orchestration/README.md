@@ -15,7 +15,7 @@ write-back.
 | `src/guild/register.ts`| Registers agents + both trigger types, prints ids for the Execution Log          |
 | `src/rocketride.ts`    | Starts R1/R2 with `pipelineTraceLevel: 'summary'`, sends batches / questions     |
 | `src/trace_ingest.ts`  | Turns `apaevt_flow` traces into L3 `relay.agent.actions` records                 |
-| `src/laserdata.ts`     | L1 replay-by-offset + L2/L3 publish, using the AGENTS.md event envelope          |
+| `src/laserdata.ts`     | L1 replay-by-offset + L2/L3 publish over `@laserdata/laser-sdk` (Iggy transport) |
 | `src/falkordb.ts`      | F6 agent write-back (MERGE only) and the agent-authored-node evidence query      |
 | `src/github.ts`        | Credential-scope gate for G2, PR read + review comment for G3                    |
 | `src/pipeline_lint.ts` | Offline `.pipe` validator driven by `.rocketride/services-catalog.json`          |
@@ -39,19 +39,33 @@ manual button, so both trigger types are demonstrable from one code path.
 
 ## SDK status — read before wiring anything else
 
-Checked against the public npm registry on 2026-08-03:
+Checked against the public npm registry on 2026-08-03, and corrected against
+Codex's `docs/credential-setup.md`:
 
-| Sponsor    | AGENTS.md assumed  | Reality                                                    |
-| ---------- | ------------------ | ---------------------------------------------------------- |
-| RocketRide | TS/Python SDK      | **`rocketride@1.3.0` — real, installed, used directly**     |
-| FalkorDB   | official driver    | **`falkordb@6.7.0` — real, installed, used directly**       |
-| Guild.ai   | `@guild-ai/sdk`    | **404 on npm.** No client package found under any spelling  |
-| LaserData  | typed Node client  | **404 on npm** (`laserdata`, `@laserdata/client`, …)        |
+| Sponsor    | AGENTS.md assumed | Reality                                                                  |
+| ---------- | ----------------- | ------------------------------------------------------------------------ |
+| RocketRide | TS/Python SDK     | **`rocketride@1.3.0`** — installed, used directly                        |
+| FalkorDB   | official driver   | **`falkordb@6.7.0`** — installed, used directly                          |
+| LaserData  | typed Node client | **`@laserdata/laser-sdk@0.0.1`** — installed, used directly              |
+| Guild.ai   | `@guild-ai/sdk`   | That name is a 404. The real SDK is **`@guildai/agents-sdk`, private** — it needs `guild auth login` to configure npm access first |
 
-So Guild and LaserData are reached over HTTP behind one interface each
-(`GuildTransport`, `LaserDataClient`). The Guild route names in
-`src/guild/client.ts` → `ROUTES` are the only unverified surface in this track;
-confirm them against Guild's live docs and edit that one object. Nothing in
+Two corrections worth knowing, because both changed the design:
+
+1. **LaserData was found late.** An earlier version of `laserdata.ts` spoke HTTP
+   against a `LASERDATA_STREAM_URL` because the package had not been located
+   under the names AGENTS.md implied. It exists under the `@laserdata` scope.
+2. **LaserData is not HTTP.** Its transport is Apache Iggy over TCP/QUIC, so a
+   RocketRide `tool_http_request` node cannot publish or replay to it. That is
+   why L1 replay, the L2 decision writes, and the L3 action stream all happen
+   here in `orchestration/` rather than inside the pipelines — the pipelines
+   receive the replayed tail as question context and return decisions as answers.
+
+Guild remains the one unverified surface: its SDK is private, so
+`GuildTransport` still fronts the gateway HTTP API and the route names in
+`src/guild/client.ts` → `ROUTES` are guesses. The base URL is now
+`https://app.guild.ai/api` (from Codex's verified setup), not `gateway.guild.ai`.
+Once someone runs `guild auth login` and `npm install @guildai/agents-sdk`
+succeeds, implement `GuildTransport` against the real SDK and delete `ROUTES`. Nothing in
 `agents.ts` depends on them.
 
 Without Guild credentials the agents still run, against `LocalGuildTransport`,

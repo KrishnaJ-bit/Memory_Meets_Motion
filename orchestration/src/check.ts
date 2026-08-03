@@ -66,7 +66,11 @@ function checkPipelines(): void {
 
 function checkCredentials(): void {
 	report(config.rocketride.apikey ? PASS : FAIL, 'RocketRide credentials', config.rocketride.uri);
-	report(config.laserdata.streamUrl ? PASS : FAIL, 'LaserData stream URL', config.laserdata.streamUrl || 'unset');
+	report(
+		config.laserdata.connectionString ? PASS : FAIL,
+		'LaserData connection',
+		config.laserdata.connectionString ? `stream "${config.laserdata.stream}"` : 'LASER_CONNECTION_STRING unset'
+	);
 	report(config.falkordb.host ? PASS : FAIL, 'FalkorDB host', `${config.falkordb.host}:${config.falkordb.port}`);
 	report(
 		config.guild.apiKey && config.guild.workspaceId ? PASS : WARN,
@@ -119,17 +123,19 @@ async function checkLive(): Promise<void> {
 		report(FAIL, 'FalkorDB', error instanceof Error ? error.message : String(error));
 	}
 
-	// LaserData L3 round-trip.
+	// LaserData L3 round-trip over the real SDK (Iggy transport).
 	try {
 		const { laserdata, STREAM_L3 } = await import('./laserdata.js');
-		const result = await laserdata.publish(STREAM_L3, {
+		await laserdata.publish(STREAM_L3, {
 			session_id: 'healthcheck',
 			task_id: 'healthcheck',
 			event_type: 'agent_action',
 			timestamp: new Date().toISOString(),
 			payload: { source: 'orchestration.check' },
 		});
-		report(PASS, 'LaserData L3 publish', `offset ${result.offset ?? 'n/a'}`);
+		const { events } = await laserdata.replay(STREAM_L3, 0, 5);
+		await laserdata.close();
+		report(PASS, 'LaserData L3 publish + replay', `${events.length} record(s) read back`);
 	} catch (error) {
 		report(FAIL, 'LaserData', error instanceof Error ? error.message : String(error));
 	}

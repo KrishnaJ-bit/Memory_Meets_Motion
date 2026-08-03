@@ -29,7 +29,7 @@ function optional(name: string, fallback = ''): string {
 
 export interface RelayConfig {
 	rocketride: { uri: string; apikey: string };
-	laserdata: { streamUrl: string; apiToken: string };
+	laserdata: { connectionString: string; stream: string };
 	falkordb: { host: string; port: number; username: string; password: string; graph: string };
 	guild: { gatewayUrl: string; apiKey: string; workspaceId: string };
 	slack: { webhookUrl: string };
@@ -41,9 +41,10 @@ export const config: RelayConfig = {
 		uri: optional('ROCKETRIDE_URI', 'https://api.rocketride.ai'),
 		apikey: optional('ROCKETRIDE_APIKEY'),
 	},
+	// Names come from the SDK itself: Laser.connectEnv() reads exactly these two.
 	laserdata: {
-		streamUrl: optional('LASERDATA_STREAM_URL', optional('ROCKETRIDE_LASERDATA_STREAM_URL')),
-		apiToken: optional('LASERDATA_API_TOKEN'),
+		connectionString: optional('LASER_CONNECTION_STRING'),
+		stream: optional('LASER_STREAM', 'dev'),
 	},
 	falkordb: {
 		host: optional('ROCKETRIDE_FALKORDB_HOST', 'localhost'),
@@ -53,7 +54,7 @@ export const config: RelayConfig = {
 		graph: optional('ROCKETRIDE_FALKORDB_GRAPH', 'relay'),
 	},
 	guild: {
-		gatewayUrl: optional('GUILD_GATEWAY_URL', 'https://gateway.guild.ai'),
+		gatewayUrl: optional('GUILD_GATEWAY_URL', optional('GUILD_API_BASE_URL', 'https://app.guild.ai/api')),
 		apiKey: optional('GUILD_API_KEY'),
 		workspaceId: optional('GUILD_WORKSPACE_ID'),
 	},
@@ -70,8 +71,6 @@ export const PIPELINE_VARS = [
 	'ROCKETRIDE_APIKEY',
 	'ROCKETRIDE_OPENAI_KEY',
 	'ROCKETRIDE_ANTHROPIC_KEY',
-	'ROCKETRIDE_LASERDATA_STREAM_URL',
-	'ROCKETRIDE_LASERDATA_URL_PATTERN',
 	'ROCKETRIDE_SLACK_URL_PATTERN',
 	'ROCKETRIDE_FALKORDB_HOST',
 	'ROCKETRIDE_FALKORDB_USERNAME',

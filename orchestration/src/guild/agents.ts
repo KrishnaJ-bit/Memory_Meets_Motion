@@ -14,6 +14,27 @@ import { requestResume, sendEventBatch, startCapturePipeline, startResumePipelin
 import { TraceIngester } from '../trace_ingest.js';
 import type { GuildAgentDefinition, GuildRunContext, GuildRunResult } from './types.js';
 
+/**
+ * R1's agent is told to answer with `{ "decisions": [...] }`, but an LLM answer
+ * is a string until proven otherwise. Pull the array out without trusting shape.
+ */
+function extractDecisions(answers: unknown): unknown[] {
+	const first = Array.isArray(answers) ? answers[0] : answers;
+	if (first == null) return [];
+
+	let parsed: unknown = first;
+	if (typeof first === 'string') {
+		try {
+			parsed = JSON.parse(first);
+		} catch {
+			return [];
+		}
+	}
+	if (Array.isArray(parsed)) return parsed;
+	const decisions = (parsed as { decisions?: unknown } | null)?.decisions;
+	return Array.isArray(decisions) ? decisions : [];
+}
+
 /** G1 — compress raw L1 events into structured decisions via the R1 pipeline. */
 export const contextSummarizer: GuildAgentDefinition = {
 	name: 'context-summarizer',
@@ -32,7 +53,7 @@ export const contextSummarizer: GuildAgentDefinition = {
 		const offset = Number((ctx.trigger?.payload?.offset as number | undefined) ?? 0);
 		ctx.log('replaying L1 tail', { offset });
 
-		const events = await laserdata.replay(STREAM_L1, offset, 200);
+		const { events, offsets } = await laserdata.replay(STREAM_L1, offset, 200);
 		if (events.length === 0) {
 			return { status: 'skipped', summary: `No L1 events at offset ${offset}.`, evidence: { offset } };
 		}
@@ -47,14 +68,26 @@ export const contextSummarizer: GuildAgentDefinition = {
 			ctx.log('R1 started', { token: handle.token, pipeline: handle.filepath });
 			const result = await sendEventBatch(handle, events);
 
+			// The pipeline returns decisions; publishing them to L2 is ours to do —
+			// LaserData is Iggy over TCP, so no agent tool inside the pipeline can
+			// reach it.
+			const decisions = extractDecisions(result?.answers);
+			let published = 0;
+			if (decisions.length > 0) {
+				published = await laserdata.publishDecisions(ctx.taskId, ctx.sessionId, decisions);
+				ctx.log('published decisions to L2', { count: published });
+			}
+
 			return {
 				status: 'ok',
-				summary: `Summarized ${events.length} L1 events into decisions via R1.`,
+				summary: `Summarized ${events.length} L1 events into ${decisions.length} decision(s); ${published} published to L2.`,
 				evidence: {
 					pipeline: 'relay-capture',
 					run_token: handle.token,
 					l1_offset: offset,
+					l1_next_offsets: Object.fromEntries([...offsets].map(([p, o]) => [p, o.toString()])),
 					events_read: events.length,
+					decisions_published: published,
 					result_types: result?.result_types ?? null,
 					answers: result?.answers ?? null,
 					trace: ingester.summary(),
@@ -100,6 +133,12 @@ export const relayResume: GuildAgentDefinition = {
 		const replayOffset = (ctx.trigger?.payload?.replay_offset as number | string | undefined) ?? 0;
 		const goal = (ctx.trigger?.payload?.goal as string | undefined) ?? 'Finish the interrupted task.';
 
+		// ReplayEventTail (L1 replay-by-offset). This runs here, not inside the
+		// pipeline: LaserData speaks Iggy over TCP, which no RocketRide tool node
+		// can reach. The tail is handed to R2 as question context.
+		const { events: eventTail } = await laserdata.replay(STREAM_L1, Number(replayOffset) || 0, 200);
+		ctx.log('replayed L1 tail', { offset: replayOffset, events: eventTail.length });
+
 		const ingester = new TraceIngester(
 			{ taskId: ctx.taskId, sessionId: ctx.sessionId, runToken: `pending-${randomUUID()}` },
 			laserdata
@@ -113,6 +152,7 @@ export const relayResume: GuildAgentDefinition = {
 				sessionId: ctx.sessionId,
 				goal,
 				replayOffset,
+				eventTail,
 			});
 
 			const answer = result.answers?.[0];
@@ -157,6 +197,7 @@ export const relayResume: GuildAgentDefinition = {
 					pipeline: 'relay-resume',
 					run_token: handle.token,
 					replay_offset: replayOffset,
+					event_tail_size: eventTail.length,
 					graph: graphNameForTask(ctx.taskId),
 					f6_write_back: writeBack,
 					answer: answer ?? null,

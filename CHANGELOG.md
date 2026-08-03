@@ -50,10 +50,24 @@ evidence to `EXECUTION.md` Section 4.
   replaced the `orchestration/guild_agents.ts` scaffold with the implemented `orchestration/src/`
   modules.
 
+### Fixed
+
+- Corrected the LaserData integration. The first pass concluded no LaserData npm client existed
+  and hand-rolled an HTTP client; the package is `@laserdata/laser-sdk`, under a scope that had
+  not been tried. `orchestration/src/laserdata.ts` now uses the real SDK with
+  `LASER_CONNECTION_STRING` / `LASER_STREAM`.
+- Removed the LaserData `tool_http_request` nodes from both pipelines. LaserData's transport is
+  Apache Iggy over TCP, so those nodes could never have published or replayed. The L1 replay now
+  runs in the G2 agent and is passed to R2 as `event_tail` question context; R1 returns decisions
+  as its answer and G1 publishes them to L2; L3 still comes from the trace ingester. The only
+  remaining HTTP tool is the Slack notifier.
+- Replaced the placeholder target repo and test command with the values frozen in
+  `demo/scenario.json`.
+
 ### Notes
 
-- Verified sponsor SDK availability against the live npm registry (2026-08-03): `rocketride@1.3.0`
-  and `falkordb@6.7.0` exist and are used directly; `@guild-ai/sdk` and every LaserData client
-  spelling return 404, so Guild.ai and LaserData are reached over HTTP behind a single swappable
-  interface each. The Guild gateway route names remain unverified and are isolated in
-  `orchestration/src/guild/client.ts` → `ROUTES`.
+- Sponsor SDK status (2026-08-03): `rocketride@1.3.0`, `falkordb@6.7.0` and
+  `@laserdata/laser-sdk@0.0.1` are public and used directly. Guild.ai's SDK is
+  `@guildai/agents-sdk` and is **private** — it needs `guild auth login` before npm can resolve
+  it, so `GuildTransport` still fronts the gateway HTTP API and its route names in
+  `orchestration/src/guild/client.ts` → `ROUTES` remain the one unverified surface in this track.

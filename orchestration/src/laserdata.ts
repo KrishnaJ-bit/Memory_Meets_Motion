@@ -1,11 +1,17 @@
 // LaserData client for Track 2's stream: L3 `relay.agent.actions`.
 //
-// There is no published LaserData npm client (verified against the npm registry
-// on 2026-08-03: `laserdata`, `@laserdata/client` and `laserdata-client` are all
-// 404). Until the real client is confirmed, this speaks plain HTTP against
-// LASERDATA_STREAM_URL using the event envelope fixed in AGENTS.md, and keeps
-// the transport behind one interface so swapping in the SDK is a single edit.
+// Uses the real SDK: `@laserdata/laser-sdk` (verified 2026-08-03, v0.0.1).
+// An earlier draft of this file spoke HTTP against a `LASERDATA_STREAM_URL`
+// because the package had not been found under the names AGENTS.md implied.
+// That was wrong twice over: the package exists under the `@laserdata` scope,
+// and its transport is Apache Iggy over TCP/QUIC, not HTTP — so no amount of
+// POSTing to a URL would have worked.
+//
+// Config comes from LASER_CONNECTION_STRING (+ optional LASER_STREAM), which is
+// what `Laser.connectEnv()` reads.
 
+import { Laser } from '@laserdata/laser-sdk';
+import type { Topic } from '@laserdata/laser-sdk';
 import { config } from './config.js';
 
 export const STREAM_L1 = 'dev.session.events';
@@ -25,16 +31,13 @@ export interface RelayEvent<P = Record<string, unknown>> {
 
 export interface PublishResult {
 	topic: string;
-	offset?: number | string;
-	status: number;
-	body: unknown;
+	status: 'sent';
 }
 
 export class LaserDataError extends Error {
 	constructor(
 		message: string,
-		readonly status?: number,
-		readonly body?: unknown
+		readonly cause?: unknown
 	) {
 		super(message);
 		this.name = 'LaserDataError';
@@ -42,44 +45,54 @@ export class LaserDataError extends Error {
 }
 
 export class LaserDataClient {
-	constructor(
-		private readonly streamUrl = config.laserdata.streamUrl,
-		private readonly apiToken = config.laserdata.apiToken
-	) {}
+	private laser?: Laser;
+	private readonly ensured = new Set<string>();
 
 	get configured(): boolean {
-		return Boolean(this.streamUrl);
+		return Boolean(config.laserdata.connectionString);
 	}
 
-	private headers(): Record<string, string> {
-		const h: Record<string, string> = { 'content-type': 'application/json' };
-		if (this.apiToken) h.authorization = `Bearer ${this.apiToken}`;
-		return h;
-	}
-
-	private assertConfigured(): void {
-		if (!this.streamUrl) {
-			throw new LaserDataError('LASERDATA_STREAM_URL is not set — cannot publish or replay.');
+	/** Lazily connect; safe to call repeatedly. */
+	private async client(): Promise<Laser> {
+		if (this.laser) return this.laser;
+		if (!this.configured) {
+			throw new LaserDataError('LASER_CONNECTION_STRING is not set — cannot publish or replay.');
 		}
+		try {
+			this.laser = config.laserdata.stream
+				? await Laser.connectWithStream(config.laserdata.connectionString, config.laserdata.stream)
+				: await Laser.connect(config.laserdata.connectionString);
+		} catch (error) {
+			throw new LaserDataError('Failed to connect to LaserData', error);
+		}
+		return this.laser;
 	}
 
-	/** Publish one event to a topic. Returns the offset the broker assigned, when it reports one. */
-	async publish(topic: string, event: RelayEvent): Promise<PublishResult> {
-		this.assertConfigured();
-		const url = new URL(this.streamUrl);
-		url.searchParams.set('topic', topic);
-
-		const res = await fetch(url, {
-			method: 'POST',
-			headers: this.headers(),
-			body: JSON.stringify(event),
-		});
-		const body = await safeJson(res);
-		if (!res.ok) {
-			throw new LaserDataError(`publish to ${topic} failed (${res.status})`, res.status, body);
+	private async topic(name: string): Promise<Topic> {
+		const laser = await this.client();
+		const topic = laser.topic(name);
+		// ensure() is idempotent and creates the stream too, so a fresh broker works.
+		if (!this.ensured.has(name)) {
+			await topic.ensure();
+			this.ensured.add(name);
 		}
-		const offset = (body as { offset?: number | string } | undefined)?.offset;
-		return { topic, offset, status: res.status, body };
+		return topic;
+	}
+
+	async close(): Promise<void> {
+		this.laser = undefined;
+		this.ensured.clear();
+	}
+
+	/** Publish one event to a topic. */
+	async publish(topicName: string, event: RelayEvent): Promise<PublishResult> {
+		const topic = await this.topic(topicName);
+		try {
+			await topic.send(new TextEncoder().encode(JSON.stringify(event)));
+		} catch (error) {
+			throw new LaserDataError(`publish to ${topicName} failed`, error);
+		}
+		return { topic: topicName, status: 'sent' };
 	}
 
 	/** Publish an L3 agent-action record. */
@@ -97,35 +110,55 @@ export class LaserDataClient {
 		});
 	}
 
-	/**
-	 * Replay a topic from a byte/record offset — the L1 replay contract Track 1 owns
-	 * and R2 consumes. Rebuilds resume context from the log rather than from memory.
-	 */
-	async replay(topic: string, fromOffset: number | string, limit = 200): Promise<RelayEvent[]> {
-		this.assertConfigured();
-		const url = new URL(this.streamUrl);
-		url.searchParams.set('topic', topic);
-		url.searchParams.set('offset', String(fromOffset));
-		url.searchParams.set('limit', String(limit));
-
-		const res = await fetch(url, { method: 'GET', headers: this.headers() });
-		const body = await safeJson(res);
-		if (!res.ok) {
-			throw new LaserDataError(`replay of ${topic}@${fromOffset} failed (${res.status})`, res.status, body);
+	/** Publish structured decisions to L2 — what R1's agent produces (G1 owns the write). */
+	async publishDecisions(taskId: string, sessionId: string, decisions: unknown[]): Promise<number> {
+		let sent = 0;
+		for (const decision of decisions) {
+			await this.publish(STREAM_L2, {
+				session_id: sessionId,
+				task_id: taskId,
+				event_type: 'graph_write',
+				timestamp: new Date().toISOString(),
+				payload: { decision },
+			});
+			sent += 1;
 		}
-		if (Array.isArray(body)) return body as RelayEvent[];
-		const events = (body as { events?: RelayEvent[] } | undefined)?.events;
-		return events ?? [];
+		return sent;
 	}
-}
 
-async function safeJson(res: Response): Promise<unknown> {
-	const text = await res.text();
-	if (!text) return undefined;
-	try {
-		return JSON.parse(text);
-	} catch {
-		return text;
+	/**
+	 * Replay a topic from an offset — the L1 replay contract Track 1 owns and R2
+	 * consumes, rebuilding resume context from the log rather than from memory.
+	 *
+	 * Offsets are per partition in Iggy. `fromOffset` seeds partition 0, which is
+	 * what a single-partition demo topic uses; pass a map for a wider topic.
+	 */
+	async replay(
+		topicName: string,
+		fromOffset: number | bigint | ReadonlyMap<number, bigint>,
+		limit = 200
+	): Promise<{ events: RelayEvent[]; offsets: ReadonlyMap<number, bigint> }> {
+		const topic = await this.topic(topicName);
+		const offsets =
+			typeof fromOffset === 'object' ? fromOffset : new Map<number, bigint>([[0, BigInt(fromOffset)]]);
+
+		try {
+			const cursor = (await topic.replay({ batchSize: limit })).fromOffsets(offsets);
+			const messages = await cursor.poll();
+			const decoder = new TextDecoder();
+			const events: RelayEvent[] = [];
+
+			for (const message of messages) {
+				try {
+					events.push(JSON.parse(decoder.decode(message.payload)) as RelayEvent);
+				} catch {
+					// A non-JSON record on the topic is someone else's business, not ours.
+				}
+			}
+			return { events, offsets: cursor.offsets };
+		} catch (error) {
+			throw new LaserDataError(`replay of ${topicName} failed`, error);
+		}
 	}
 }
 
