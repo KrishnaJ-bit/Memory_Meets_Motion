@@ -1,0 +1,24 @@
+{
+  "name": "relay-capture-memory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Track 1: event capture (LaserData) + memory/graph layer (FalkorDB) for Relay.",
+  "scripts": {
+    "simulate": "tsx scripts/simulate_session.ts",
+    "replay": "tsx scripts/replay_l1.ts",
+    "seed-graph": "tsx scripts/seed_graph.ts",
+    "inspect-graph": "tsx scripts/inspect_graph.ts",
+    "build-fixtures": "tsx scripts/build_fixtures.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@laserdata/laser-sdk": "^0.0.1",
+    "falkordb": "^6.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

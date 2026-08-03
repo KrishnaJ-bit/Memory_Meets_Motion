@@ -1,0 +1,6 @@
+[laser:fixture] published 26 events to dev.session.events/sessions
+[laser:fixture] stream now has 26 total event(s)
+session_id=sess_732f5b4d task_id=alpha
+[laser:fixture] published 26 events to dev.session.events/sessions
+[laser:fixture] stream now has 52 total event(s)
+session_id=sess_4327e07d task_id=beta

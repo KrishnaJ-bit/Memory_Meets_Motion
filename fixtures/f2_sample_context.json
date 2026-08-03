@@ -1,0 +1,69 @@
+{
+  "task_id": "demo-task",
+  "task_title": "Build capture + memory layer for Relay",
+  "task_status": "completed",
+  "steps": [
+    {
+      "step_id": "step_1",
+      "step_order": 0,
+      "step_description": "read repo docs",
+      "step_status": "completed",
+      "decisions": [],
+      "blockers": [],
+      "files": [
+        "capture/src/read_repo_docs.ts"
+      ]
+    },
+    {
+      "step_id": "step_2",
+      "step_order": 1,
+      "step_description": "reproduce the bug",
+      "step_status": "completed",
+      "decisions": [
+        {
+          "id": "step_2:decision:2026-08-03T17:01:10.000Z",
+          "text": "use MERGE instead of CREATE for graph writes",
+          "reasoning": "replay safety on consumer restart"
+        }
+      ],
+      "blockers": [],
+      "files": [
+        "capture/src/reproduce_the_bug.ts"
+      ]
+    },
+    {
+      "step_id": "step_3",
+      "step_order": 2,
+      "step_description": "write failing test",
+      "step_status": "completed",
+      "decisions": [
+        {
+          "id": "step_3:decision:2026-08-03T17:02:14.000Z",
+          "text": "pin to the installed Node version instead of upgrading immediately",
+          "reasoning": "the LaserData SDK's newer Node requirement isn't worth blocking the whole task over"
+        }
+      ],
+      "blockers": [
+        {
+          "id": "blocker_3",
+          "description": "LaserData SDK requires Node >=22.14",
+          "resolved": false
+        }
+      ],
+      "files": [
+        "capture/src/write_failing_test.ts"
+      ]
+    },
+    {
+      "step_id": "step_4",
+      "step_order": 3,
+      "step_description": "implement fix",
+      "step_status": "completed",
+      "decisions": [],
+      "blockers": [],
+      "files": [
+        "capture/src/implement_fix.ts"
+      ]
+    }
+  ]
+}
