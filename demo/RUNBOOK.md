@@ -52,9 +52,20 @@ npm run demo -- --stage 2     # graph is now seeded with the interrupted task
 npm run demo:autopilot        # http://localhost:4173
 ```
 
+Kiosk shortcuts (used for the screenshots, handy for rehearsing):
+`?autostart=sim` plays the full story on load, `?autostart=autopilot` jumps
+straight to the handoff, `?camera=1` turns the camera on without a click.
+
+Screenshots of each phase live in `demo/screenshots/`.
+
 In the browser:
 
-1. Move the mouse and type — the mouse/click/keyboard rows go **active**.
+0. Optionally click **Enable camera** — camera motion becomes a fifth presence
+   signal. Denying it is fine; the panel says why and the other four signals
+   carry the demo. `?camera=1` enables it automatically for a rehearsal.
+1. Click **▶ Run full simulation** to play the whole story — the developer types
+   the boundary test, the events stream to L1, the test fails, and they walk
+   away — or drive it yourself: move the mouse and type, then go still.
 2. Then do one of: stop touching anything until the idle countdown hits zero,
    switch tabs, or click **Simulate leaving**. (No camera — presence is
    mouse/click/keyboard/tab-visibility only.)
