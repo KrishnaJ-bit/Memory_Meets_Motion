@@ -1,0 +1,259 @@
+:root {
+  color-scheme: dark;
+  --bg: #101411;
+  --panel: #171d19;
+  --panel-strong: #202820;
+  --text: #edf5ed;
+  --muted: #9eaaa0;
+  --line: #324037;
+  --accent: #8fd16a;
+  --alert: #ffcf5a;
+  --active: #66b8ff;
+  --danger: #ff7f6e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 24px;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.presence-pane,
+.autopilot-pane {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 22px;
+}
+
+.topbar {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+h1 {
+  max-width: 760px;
+  font-size: clamp(2rem, 4vw, 4.6rem);
+  line-height: 0.98;
+}
+
+h2 {
+  font-size: 1.25rem;
+}
+
+.mode-badge {
+  min-width: 128px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: var(--panel-strong);
+  color: var(--accent);
+  text-align: center;
+  font-weight: 800;
+}
+
+.mode-badge[data-mode="autopilot"] {
+  color: var(--active);
+}
+
+.signal-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.camera-panel,
+.status-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0c0f0d;
+}
+
+.camera-panel {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+}
+
+video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #0b0d0b;
+}
+
+canvas {
+  display: none;
+}
+
+.camera-overlay {
+  position: absolute;
+  inset: auto 12px 12px 12px;
+  display: flex;
+  justify-content: space-between;
+  border: 1px solid rgba(237, 245, 237, 0.18);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(16, 20, 17, 0.78);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.status-panel {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  padding: 18px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 42px;
+  border-bottom: 1px solid var(--line);
+}
+
+.status-row:last-child {
+  border-bottom: 0;
+}
+
+.status-row span {
+  color: var(--muted);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+button {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 14px;
+  background: var(--panel-strong);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+button:hover,
+button:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  color: var(--muted);
+}
+
+input[type="range"] {
+  width: 150px;
+  accent-color: var(--accent);
+}
+
+.autopilot-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.timeline {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.timeline li {
+  color: var(--muted);
+}
+
+.timeline li[data-state="done"] {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.timeline li[data-state="active"] {
+  color: var(--active);
+  font-weight: 900;
+}
+
+pre {
+  overflow: auto;
+  min-height: 220px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #0a0d0b;
+  color: #cce8ff;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .app-shell,
+  .signal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell {
+    padding: 14px;
+  }
+
+  .topbar {
+    flex-direction: column;
+  }
+
+  .mode-badge {
+    width: 100%;
+  }
+}

@@ -10,3 +10,6 @@ coverage/
 *.log
 *.tmp
 .DS_Store
+
+demo/autopilot-monitor/events/*.jsonl
+!demo/autopilot-monitor/events/.gitkeep

@@ -12,17 +12,17 @@ before writing code, and resume at the first unchecked box.
 
 ## Section 0 — Environment & access checklist
 
-- [ ] `git init`, initial commit
-- [ ] Codex CLI installed and authenticated (`codex --version`; sign in, or set `OPENAI_API_KEY`
+- [x] `git init`, initial commit
+- [x] Codex CLI installed and authenticated (`codex --version`; sign in, or set `OPENAI_API_KEY`
       for headless/automation use)
 - [ ] LaserData: account created, API token in `.env`, client library installed
-- [ ] FalkorDB: instance running — Docker (`docker run -p 6379:6379 -p 3000:3000 -it --rm
+- [x] FalkorDB: instance running — Docker (`docker run -p 6379:6379 -p 3000:3000 -it --rm
       falkordb/falkordb:latest`) or FalkorDB Cloud — connection string in `.env`
 - [ ] Guild.ai: workspace created, API key in `.env`, `@guild-ai/sdk` installed
 - [ ] RocketRide: account/Cloud credits claimed, API key in `.env`, SDK installed
 - [ ] LLM provider key(s) for the Reason/CodeEdit pipeline nodes in `.env`
 - [x] `.env.example` written, `.env` gitignored
-- [ ] Demo scenario locked (Section 5) — do not change it after this phase ends
+- [x] Demo scenario locked (Section 5) — do not change it after this phase ends
 
 ---
 
@@ -150,7 +150,7 @@ need real evidence rows in Section 4.
 
 - [ ] Complete Section 0 checklist
 - [x] Assign owners: Capture (L), Memory (F), Orchestration (G), Execution (R)
-- [ ] Agree the exact demo task (Section 5) — freeze it
+- [x] Agree the exact demo task (Section 5) — freeze it
 
 ### Phase 1 — Capture layer (Hour 1–3) — covers L1, L2
 
@@ -211,17 +211,29 @@ query, session, or trace evidence.
 | # | Time | Phase | Sponsor | Component | Action | Evidence | Status |
 |---|---|---|---|---|---|---|---|
 | 1 | 2026-08-03 11:19 PDT | 0 | All four sponsors | Parallel execution docs | Created three owner task logs for Claude Code #1, Claude Code #2, and Codex; added changelog and env/gitignore path cleanup | `execution/CLAUDECODE_1_CAPTURE_MEMORY.md`, `execution/CLAUDECODE_2_ORCHESTRATION_PIPELINE.md`, `execution/CODEX_3_INTEGRATION_DEMO.md`, `CHANGELOG.md`, `.env.example`, `.gitignore` | done |
+| 2 | 2026-08-03 11:26 PDT | 0 | All four sponsors | Codex integration branch | Verified repo setup and created the Codex integration branch | `git log --oneline -5` -> `03279f3 Add parallel execution tracks`; `codex --version` -> `codex-cli 0.137.0`; branch `feature/codex-integration-demo` | done |
+| 3 | 2026-08-03 11:26 PDT | 0 | All four sponsors | Demo scenario | Locked deterministic checkout rate-limit demo arc and fixture event tail | `EXECUTION.md` Section 5; `demo/scenario.json`; `demo/narration.md`; `demo/fixture-events.jsonl` | done |
+| 4 | 2026-08-03 11:29 PDT | 0 | All four sponsors | Demo fixture validation | Ran the toy repo test to confirm the interrupted state is deterministic | `npm test` in `demo/toy-repo` -> 3 tests, 2 pass, 1 fail; boundary assertion `429 !== 200` at `test/checkout.test.js:47` | done |
+| 5 | 2026-08-03 11:30 PDT | 0 | All four sponsors | Track branch availability | Checked for Track 1 and Track 2 branches before integration; none are available yet | `git fetch --all --prune`; `git branch -a` -> only `origin/main` plus local `feature/codex-integration-demo` | blocked |
+| 6 | 2026-08-03 11:54 PDT | 0 | All four sponsors | Autopilot demo direction | User directed success demo around camera/mouse/click activity detecting absence and turning on autopilot | Branch `feature/autopilot-presence-demo`; `demo/autopilot-monitor`; `scripts/autopilot-demo-server.ts`; `npm run demo:autopilot` | done |
+| 7 | 2026-08-03 11:55 PDT | 0 | FalkorDB | Local runtime | Started local FalkorDB Docker container and verified an idempotent Cypher `MERGE`/read through the JS client | Docker container `relay-falkordb`; `docker ps` ports `6379`, `3000`; `relay_setup_check` query -> `[{"component":"FalkorDB local Docker"}]` | done |
+| 8 | 2026-08-03 11:56 PDT | 0 | All four sponsors | Credential setup | Installed current SDK/CLI dependencies and added a non-secret env verifier; real OAuth/API secrets still required interactively | `@laserdata/laser-sdk@0.0.1`, `falkordb@6.7.0`, `rocketride@1.3.0`, `@guildai/cli@0.17.0`, `gh 2.97.0`; `npm run env:check` reports missing LaserData, Guild auth/workspace, RocketRide, LLM, GitHub auth | blocked |
+| 9 | 2026-08-03 11:56 PDT | 0 | All four sponsors | Autopilot handoff smoke | Local presence bridge accepted a `developer_absent` handoff and returned an autopilot run payload | `POST /api/autopilot/start` -> `autopilot_id: autopilot-1785783356504`, `mode: active`, next actions include LaserData emit, Guild trigger, RocketRide pipeline, FalkorDB write-back | done |
 | | | | | | | | |
 
 ---
 
 ## Section 5 — Demo scenario (freeze at end of Phase 0)
 
-- Repo: `<toy repo name>`
-- Feature: `<e.g. "add rate limiting to /api/checkout">`
-- Scripted arc: dev tries sliding-window → too complex → switches to token-bucket → test fails on
-  an edge case → dev leaves
-- Narration script: `<5 lines, one per demo beat, matching README → Demo>`
+- Repo: `relay-checkout-demo` (`demo/toy-repo`)
+- Feature: add token-bucket rate limiting to `/api/checkout`
+- Success condition: camera motion, mouse movement, clicks, keyboard activity, or tab visibility
+  prove the developer is active; absence flips Relay into autopilot and hands the task to
+  `relay-resume`.
+- Scripted arc: presence monitor watches the dev -> dev tries sliding-window -> too complex for the
+  demo service -> switches to token-bucket -> test fails at the exact 1000 ms refill boundary ->
+  dev leaves -> Relay emits `developer_absent` and turns on autopilot.
+- Narration script: `demo/narration.md` (5 lines, one per demo beat, matching README -> Demo)
 
 ---
 

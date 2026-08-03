@@ -1,0 +1,35 @@
+{
+  "name": "memory_meets_motion",
+  "version": "1.0.0",
+  "description": "Relay integration demo for the Memory Meets Motion hackathon.",
+  "type": "module",
+  "scripts": {
+    "demo:autopilot": "tsx scripts/autopilot-demo-server.ts",
+    "env:check": "tsx scripts/verify-env.ts",
+    "demo:test": "npm test --prefix demo/toy-repo",
+    "test": "npm run env:check"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KrishnaJ-bit/Memory_Meets_Motion.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/KrishnaJ-bit/Memory_Meets_Motion/issues"
+  },
+  "homepage": "https://github.com/KrishnaJ-bit/Memory_Meets_Motion#readme",
+  "dependencies": {
+    "@laserdata/laser-sdk": "^0.0.1",
+    "dotenv": "^17.4.2",
+    "falkordb": "^6.7.0",
+    "rocketride": "^1.3.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "tsx": "^4.23.5",
+    "typescript": "^7.0.2"
+  }
+}

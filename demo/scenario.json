@@ -1,0 +1,30 @@
+{
+  "locked_at": "2026-08-03 11:26 PDT",
+  "repo": "demo/toy-repo",
+  "repo_name": "relay-checkout-demo",
+  "task_id": "task-checkout-rate-limit",
+  "session_id": "session-demo-checkout-001",
+  "feature": "Add token-bucket rate limiting to /api/checkout",
+  "success_demo": "Relay detects that the developer is absent from camera/mouse/click/keyboard activity, then turns on autopilot and hands the task to relay-resume.",
+  "scripted_arc": [
+    "Presence monitor starts and records mouse, click, keyboard, tab visibility, and optional camera-motion signals.",
+    "Developer starts with a sliding-window limiter for /api/checkout.",
+    "Developer abandons sliding-window because the per-user timestamp list is too complex for the demo service.",
+    "Developer switches to a token-bucket limiter with capacity 2 and refill rate 1 request per second.",
+    "A deterministic boundary test fails because the limiter does not refill at exactly 1000 ms.",
+    "Developer leaves with the failing test, and Relay resumes from the graph plus event tail."
+  ],
+  "expected_failure": {
+    "command": "npm test",
+    "cwd": "demo/toy-repo",
+    "reason": "Boundary refill at exactly 1000 ms currently fails."
+  },
+  "demo_beats": [
+    "Presence monitor watches camera motion plus mouse, click, keyboard, and tab activity.",
+    "Dev session hits the checkout rate-limit boundary bug, then leaves.",
+    "Relay emits `developer_absent` and switches the demo into autopilot mode.",
+    "Guild relay-resume hands the task to the governed agent.",
+    "RocketRide runs fetch, replay, reason, edit, test retry, PR, and notify nodes.",
+    "The PR explains the inherited blocker and the token-bucket boundary fix."
+  ]
+}
