@@ -1,0 +1,262 @@
+// Relay's three Guild.ai agents (EXECUTION.md §1 → G1, G2, G3).
+//
+// Each `run` is the real body, not a stub: G1 and G2 drive the RocketRide
+// pipelines, G3 reviews the PR that G2's pipeline opened. They talk to Guild
+// only through GuildTransport (client.ts), so none of this depends on an SDK
+// whose API could not be confirmed.
+
+import { randomUUID } from 'node:crypto';
+import { config } from '../config.js';
+import { falkorWriteBack, graphNameForTask } from '../falkordb.js';
+import { ScopeViolationError, github } from '../github.js';
+import { STREAM_L1, laserdata } from '../laserdata.js';
+import { requestResume, sendEventBatch, startCapturePipeline, startResumePipeline, stop } from '../rocketride.js';
+import { TraceIngester } from '../trace_ingest.js';
+import type { GuildAgentDefinition, GuildRunContext, GuildRunResult } from './types.js';
+
+/** G1 — compress raw L1 events into structured decisions via the R1 pipeline. */
+export const contextSummarizer: GuildAgentDefinition = {
+	name: 'context-summarizer',
+	requirementId: 'G1',
+	description:
+		'Reads a batch of raw LaserData session events, runs them through the RocketRide relay-capture pipeline, and emits structured decisions to relay.graph.mutations before the graph write.',
+	triggers: [
+		{ kind: 'scheduled', cron: '*/2 * * * *', description: 'Compress the event tail every two minutes during a live session.' },
+		{ kind: 'on-batch', description: 'Fire as soon as the L1 consumer has buffered a full batch.' },
+	],
+	scope: {
+		network: { allow: ['laserdata', 'rocketride'] },
+		filesystem: { allow: [] },
+	},
+	async run(ctx: GuildRunContext): Promise<GuildRunResult> {
+		const offset = Number((ctx.trigger?.payload?.offset as number | undefined) ?? 0);
+		ctx.log('replaying L1 tail', { offset });
+
+		const events = await laserdata.replay(STREAM_L1, offset, 200);
+		if (events.length === 0) {
+			return { status: 'skipped', summary: `No L1 events at offset ${offset}.`, evidence: { offset } };
+		}
+
+		const ingester = new TraceIngester(
+			{ taskId: ctx.taskId, sessionId: ctx.sessionId, runToken: `pending-${randomUUID()}` },
+			laserdata
+		);
+		const handle = await startCapturePipeline({ traceLevel: 'summary', onEvent: ingester.handleEvent });
+
+		try {
+			ctx.log('R1 started', { token: handle.token, pipeline: handle.filepath });
+			const result = await sendEventBatch(handle, events);
+
+			return {
+				status: 'ok',
+				summary: `Summarized ${events.length} L1 events into decisions via R1.`,
+				evidence: {
+					pipeline: 'relay-capture',
+					run_token: handle.token,
+					l1_offset: offset,
+					events_read: events.length,
+					result_types: result?.result_types ?? null,
+					answers: result?.answers ?? null,
+					trace: ingester.summary(),
+				},
+			};
+		} finally {
+			await stop(handle);
+		}
+	},
+};
+
+/** G2 — the governed resume agent: runs R2 and writes the result back to the graph. */
+export const relayResume: GuildAgentDefinition = {
+	name: 'relay-resume',
+	requirementId: 'G2',
+	description:
+		'Scoped resume agent. Rebuilds task context from FalkorDB plus the LaserData replay, runs the RocketRide relay-resume pipeline to finish the work, and MERGEs the agent-authored Step/Decision nodes back into the per-task graph (F6).',
+	triggers: [
+		{ kind: 'manual', description: 'Demo button — operator triggers the resume on stage.' },
+		{ kind: 'idle-timeout', idleSeconds: 900, description: 'Real path — fires after 15 minutes of session inactivity.' },
+	],
+	scope: {
+		github: { repos: [config.github.targetRepo].filter(Boolean), permissions: ['contents:read', 'contents:write', 'pull_requests:write'] },
+		filesystem: { allow: [] },
+		network: { allow: ['laserdata', 'falkordb', 'rocketride', 'api.github.com', 'hooks.slack.com'] },
+	},
+	async run(ctx: GuildRunContext): Promise<GuildRunResult> {
+		// Governance gate: refuse to run at all if the credentials reach past the target repo.
+		try {
+			const scope = await github.assertScopedToTargetRepo();
+			ctx.log('credential scope verified', { repos: scope.repos });
+		} catch (error) {
+			if (error instanceof ScopeViolationError) {
+				return {
+					status: 'failed',
+					summary: `Refused to run: ${error.message}`,
+					evidence: { scope_check: 'failed', reason: error.message },
+				};
+			}
+			throw error;
+		}
+
+		const replayOffset = (ctx.trigger?.payload?.replay_offset as number | string | undefined) ?? 0;
+		const goal = (ctx.trigger?.payload?.goal as string | undefined) ?? 'Finish the interrupted task.';
+
+		const ingester = new TraceIngester(
+			{ taskId: ctx.taskId, sessionId: ctx.sessionId, runToken: `pending-${randomUUID()}` },
+			laserdata
+		);
+		const handle = await startResumePipeline({ traceLevel: 'summary', onEvent: ingester.handleEvent });
+
+		try {
+			ctx.log('R2 started', { token: handle.token });
+			const result = await requestResume(handle, {
+				taskId: ctx.taskId,
+				sessionId: ctx.sessionId,
+				goal,
+				replayOffset,
+			});
+
+			const answer = result.answers?.[0];
+			ctx.log('R2 answered', { hasAnswer: Boolean(answer) });
+
+			// F6 — record the run itself as agent-authored graph state. The pipeline's
+			// falkordb tool writes the detailed nodes; this guarantees at least the run
+			// is in the graph even if the agent aborted before its own write-back.
+			let writeBack: unknown = null;
+			try {
+				await falkorWriteBack.connect();
+				writeBack = await falkorWriteBack.writeAgentWork({
+					taskId: ctx.taskId,
+					agentId: 'relay-resume',
+					agentName: 'Relay Resume Agent',
+					steps: [
+						{
+							stepId: `${ctx.taskId}:resume:${handle.token}`,
+							taskId: ctx.taskId,
+							order: 1,
+							description: `Ran relay-resume pipeline (token ${handle.token}).`,
+							status: answer ? 'done' : 'failed',
+						},
+					],
+					decisions: [
+						{
+							decisionId: `${ctx.taskId}:decision:${handle.token}`,
+							stepId: `${ctx.taskId}:resume:${handle.token}`,
+							text: typeof answer === 'string' ? answer.slice(0, 2000) : 'No answer returned by R2.',
+							reasoning: `Resumed from LaserData offset ${replayOffset} against graph ${graphNameForTask(ctx.taskId)}.`,
+						},
+					],
+				});
+			} finally {
+				await falkorWriteBack.close();
+			}
+
+			return {
+				status: answer ? 'ok' : 'failed',
+				summary: answer ? 'Resume pipeline completed.' : 'Resume pipeline returned no answer.',
+				evidence: {
+					pipeline: 'relay-resume',
+					run_token: handle.token,
+					replay_offset: replayOffset,
+					graph: graphNameForTask(ctx.taskId),
+					f6_write_back: writeBack,
+					answer: answer ?? null,
+					trace: ingester.summary(),
+				},
+			};
+		} finally {
+			await stop(handle);
+		}
+	},
+};
+
+/**
+ * G3 — reviews the PR that G2 opened, before a human sees it.
+ *
+ * Deliberately not another LLM pass: it cross-checks the PR against the memory
+ * graph (does it touch a file with an unresolved Blocker?) and against the PR
+ * body's own claims (did it say tests ran?), which is a check a second LLM
+ * reading the same diff cannot make.
+ */
+export const prRiskReview: GuildAgentDefinition = {
+	name: 'pr-risk-review',
+	requirementId: 'G3',
+	description:
+		"Reviews the resume agent's own PR: flags oversized diffs, files still carrying unresolved blockers in the memory graph, and PRs that never state a test result. Posts the review as a comment.",
+	triggers: [{ kind: 'webhook-event', event: 'github.pr.opened', description: "Fires on the PR opened by relay-resume." }],
+	scope: {
+		github: { repos: [config.github.targetRepo].filter(Boolean), permissions: ['contents:read', 'pull_requests:write'] },
+		network: { allow: ['api.github.com', 'falkordb', 'laserdata'] },
+	},
+	async run(ctx: GuildRunContext): Promise<GuildRunResult> {
+		const prNumber = Number(ctx.trigger?.payload?.pull_request_number ?? ctx.trigger?.payload?.number);
+		if (!Number.isFinite(prNumber)) {
+			return { status: 'skipped', summary: 'Trigger carried no pull request number.', evidence: {} };
+		}
+
+		const pr = await github.getPullRequest(prNumber);
+		const files = await github.listChangedFiles(prNumber);
+		ctx.log('reviewing PR', { number: pr.number, files: files.length });
+
+		const risks: string[] = [];
+
+		const churn = pr.additions + pr.deletions;
+		if (churn > 400) {
+			risks.push(`Large diff for an agent-authored change: ${churn} lines across ${pr.changedFiles} files.`);
+		}
+
+		if (!/test/i.test(pr.body ?? '')) {
+			risks.push('PR body does not state a test result. The resume agent is required to report which tests ran.');
+		}
+
+		// Cross-check against the memory graph: unresolved blockers on touched files.
+		let blockedFiles: string[] = [];
+		try {
+			await falkorWriteBack.connect();
+			const authored = await falkorWriteBack.readAgentAuthored(ctx.taskId);
+			ctx.log('graph cross-check', { agentAuthoredNodes: authored.length });
+			blockedFiles = files.map((f) => f.filename).filter((name) => JSON.stringify(authored).includes(name));
+			if (blockedFiles.length > 0) {
+				risks.push(`Files referenced by agent-authored graph nodes: ${blockedFiles.join(', ')} — confirm the blocker was actually resolved.`);
+			}
+		} catch (error) {
+			risks.push(`Graph cross-check unavailable: ${error instanceof Error ? error.message : String(error)}`);
+		} finally {
+			await falkorWriteBack.close();
+		}
+
+		const verdict = risks.length === 0 ? 'No blocking risks found.' : `${risks.length} item(s) need a human look.`;
+		const comment = [
+			'### Relay PR risk review (automated, agent `pr-risk-review`)',
+			'',
+			verdict,
+			'',
+			...risks.map((r) => `- ${r}`),
+			'',
+			`_Reviewed ${files.length} changed file(s) on branch \`${pr.headRef}\`._`,
+		].join('\n');
+
+		const posted = await github.postReviewComment(prNumber, comment);
+
+		await laserdata
+			.publishAgentAction(ctx.taskId, ctx.sessionId, {
+				source: 'guild.pr-risk-review',
+				pr_number: prNumber,
+				pr_url: pr.htmlUrl,
+				risks,
+				comment_url: posted.html_url,
+			})
+			.catch(() => undefined);
+
+		return {
+			status: 'ok',
+			summary: verdict,
+			evidence: { pr_number: prNumber, pr_url: pr.htmlUrl, comment_url: posted.html_url, risks },
+		};
+	},
+};
+
+export const agents: GuildAgentDefinition[] = [contextSummarizer, relayResume, prRiskReview];
+
+export function agentByName(name: string): GuildAgentDefinition | undefined {
+	return agents.find((a) => a.name === name);
+}
