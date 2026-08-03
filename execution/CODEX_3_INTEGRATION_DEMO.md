@@ -46,11 +46,14 @@ Avoid editing unless integrating or unblocking:
 
 ## Work Plan
 
-- [ ] Create or confirm the toy demo repo and deterministic feature arc in `EXECUTION.md` Section 5.
-- [ ] Build the demo fixture data and narration script without changing the sponsor usage matrix.
-- [ ] Keep the `README.md` setup path current as implementation paths become real.
-- [ ] Merge Track 1 outputs and run capture/memory smoke checks.
-- [ ] Merge Track 2 outputs and run orchestration/pipeline smoke checks.
+- [x] Create or confirm the toy demo repo and deterministic feature arc in `EXECUTION.md` Section 5.
+- [x] Build the demo fixture data and narration script without changing the sponsor usage matrix.
+- [x] Keep the `README.md` setup path current as implementation paths become real.
+- [x] Build the presence-monitor demo that turns on autopilot when user activity stops.
+- [ ] [blocked] Merge Track 1 outputs and run capture/memory smoke checks. No Track 1 branch is
+      present on `origin` after `git fetch --all --prune` at 2026-08-03 11:30 PDT.
+- [ ] [blocked] Merge Track 2 outputs and run orchestration/pipeline smoke checks. No Track 2 branch is
+      present on `origin` after `git fetch --all --prune` at 2026-08-03 11:30 PDT.
 - [ ] Run the full chain: simulator -> LaserData -> FalkorDB -> Guild trigger -> RocketRide -> PR.
 - [ ] Verify all Section 1 sponsor rows have real evidence in `EXECUTION.md` Section 4.
 - [ ] Record one clean backup run to `demo/backup.mp4`.
@@ -73,6 +76,12 @@ Avoid editing unless integrating or unblocking:
 | # | Time | Action | Sponsors | Evidence | Status |
 |---|---|---|---|---|---|
 | 1 | 2026-08-03 11:19 PDT | Track created and assigned to Codex. | LaserData, FalkorDB, Guild.ai, RocketRide | `execution/CODEX_3_INTEGRATION_DEMO.md` | ready |
+| 2 | 2026-08-03 11:26 PDT | Created `feature/codex-integration-demo` and verified local Codex CLI plus existing Git history. | LaserData, FalkorDB, Guild.ai, RocketRide | `codex --version` -> `codex-cli 0.137.0`; `git log --oneline -5` -> `03279f3 Add parallel execution tracks` | done |
+| 3 | 2026-08-03 11:26 PDT | Locked the checkout rate-limit demo scenario and added deterministic fixture events, narration, and toy repo. | LaserData, FalkorDB, Guild.ai, RocketRide | `demo/scenario.json`, `demo/fixture-events.jsonl`, `demo/narration.md`, `demo/toy-repo` | done |
+| 4 | 2026-08-03 11:29 PDT | Confirmed the toy repo starts in the intended interrupted state. | LaserData, FalkorDB, Guild.ai, RocketRide | `npm test` in `demo/toy-repo` -> 3 tests, 2 pass, 1 fail; boundary assertion `429 !== 200` | done |
+| 5 | 2026-08-03 11:30 PDT | Checked remotes for Track 1 and Track 2 integration branches. | LaserData, FalkorDB, Guild.ai, RocketRide | `git fetch --all --prune`; `git branch -a` -> only `origin/main` plus local `feature/codex-integration-demo` | blocked |
+| 6 | 2026-08-03 11:54 PDT | Created the user-activity presence gate so the demo switches into autopilot when the developer leaves. | LaserData, FalkorDB, Guild.ai, RocketRide | `feature/autopilot-presence-demo`; `demo/autopilot-monitor`; `scripts/autopilot-demo-server.ts`; `npm run demo:autopilot` | done |
+| 7 | 2026-08-03 11:56 PDT | Smoke-tested local runtime setup and the autopilot handoff bridge. | LaserData, FalkorDB, Guild.ai, RocketRide | `npx tsc --noEmit`; `POST /api/autopilot/start` -> `autopilot_id: autopilot-1785783356504`; `npm run env:check` lists remaining missing OAuth/API keys | mixed |
 | | | | | | |
 
 ## Change Discipline

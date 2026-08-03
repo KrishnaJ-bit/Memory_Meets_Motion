@@ -86,11 +86,19 @@ runtime evidence to `EXECUTION.md` Section 4 when a sponsor touchpoint is comple
 
 ## Demo (60 seconds)
 
-1. Dev session hits a blocker, walks away
-2. FalkorDB Browser shows the live graph forming
-3. "Hand off to Relay" fires the Guild trigger — session/audit view lights up
-4. RocketRide pipeline canvas runs live: fetch → reason → edit → test → PR
-5. PR opens with a plain-English summary of what was inherited and what was finished
+1. The presence monitor watches camera motion plus mouse, click, keyboard, and tab activity while the dev works on `/api/checkout`.
+2. The dev hits the exact 1000 ms token-bucket refill bug, then physically leaves or clicks "Simulate leaving."
+3. Relay emits a `developer_absent` handoff event and switches the UI from watching mode into autopilot mode.
+4. Guild.ai starts the governed `relay-resume` agent, and RocketRide runs fetch, replay, reason, edit, test retry, PR, and notify nodes.
+5. The PR explains what Relay inherited, what it fixed, and which sponsor-backed evidence proves the handoff.
+
+Run the local presence gate:
+
+```sh
+npm run demo:autopilot
+```
+
+Then open `http://localhost:4173`.
 
 ## Status
 
