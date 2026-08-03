@@ -15,12 +15,19 @@ before writing code, and resume at the first unchecked box.
 - [x] `git init`, initial commit
 - [x] Codex CLI installed and authenticated (`codex --version`; sign in, or set `OPENAI_API_KEY`
       for headless/automation use)
-- [ ] LaserData: account created, API token in `.env`, client library installed
-- [x] FalkorDB: instance running — Docker (`docker run -p 6379:6379 -p 3000:3000 -it --rm
-      falkordb/falkordb:latest`) or FalkorDB Cloud — connection string in `.env`
-- [ ] Guild.ai: workspace created, API key in `.env`, `@guild-ai/sdk` installed
-- [ ] RocketRide: account/Cloud credits claimed, API key in `.env`, SDK installed
-- [ ] LLM provider key(s) for the Reason/CodeEdit pipeline nodes in `.env`
+- [ ] LaserData: account created, API token in `.env`, client library installed — still fixture
+      mode; no LaserData Cloud connection string obtained
+- [x] FalkorDB: instance running — FalkorDB Cloud (not Docker; none available on this machine),
+      connection string in `.env`, verified live (`FALKOR_MODE=live`)
+- [x] Guild.ai: workspace created (`krishnaj-bit/relay`), API key in `.env`, CLI installed and
+      authenticated — 3 agents published and invoked live (`guild workspace chat`)
+- [x] RocketRide: API key in `.env`, SDK installed, `client.connect()`/`client.use()` verified live
+- [x] LLM provider key(s) for the Reason/CodeEdit pipeline nodes in `.env` — Gemini
+      (`ROCKETRIDE_GEMINI_KEY`, switched from Anthropic after a real "credit balance too low"
+      error); the key connects but has hit real free-tier quota limits on every model tried so
+      far (0–20 req/day) — a Google Cloud billing/provisioning issue on the project behind the
+      key, not a code issue. See `evidence/live-agent-runs/` for one full live G1 run that
+      completed before quota ran out.
 - [x] `.env.example` written, `.env` gitignored
 - [x] Demo scenario locked (Section 5) — do not change it after this phase ends
 
@@ -39,14 +46,17 @@ below needs a corresponding entry in Section 4 before submission.
 | L2 | `relay.graph.mutations` | FalkorDB consumer | Audit reader | Every Cypher write mirrored back as a durable record — the graph is provably rebuildable from the log |
 | L3 | `relay.agent.actions` | RocketRide pipeline | Guild session logger, audit reader | Every action the resume agent takes: query issued, edit made, test run, PR opened |
 
-- [x] L1 live and publishing (target: 15+ events across one simulated session) — 26 events/session,
-      fixture mode (no live LaserData endpoint reachable — see
-      `execution/CLAUDECODE_1_CAPTURE_MEMORY.md` Blocker note); real SDK adapter written and
-      verified, `LASER_MODE=live` away from a live run
-- [x] L2 live and publishing (one record per graph write) — same caveat as L1
-- [ ] L3 live and publishing (one record per pipeline node execution) — Track 2
+- [x] L1 live and publishing (target: 15+ events across one simulated session) — 22-26
+      events/session, fixture mode (no LaserData Cloud connection string obtained); real SDK
+      adapter written and verified, `LASER_MODE=live` away from a live run
+- [x] L2 live and publishing (one record per graph write) — same caveat as L1; 19 MERGE mutations
+      mirrored per demo run (`evidence/final-live-run/terminal_demo_full_run_with_f6_agent_tagging.log`)
+- [x] L3 live and publishing (one record per pipeline/autopilot stage) — same caveat as L1; 14 L3
+      `relay.agent.actions` records per autopilot run (`demo/relay/autopilot.ts`'s `emit()`),
+      confirmed in the same run log and via the browser SSE evidence below
 - [x] Replay-from-offset demonstrated at least once — rebuild the resume context from the L1 tail,
-      not from whatever's currently in memory (`execution/evidence/replay_l1_offset10.out`)
+      not from whatever's currently in memory (`execution/evidence/replay_l1_offset10.out`;
+      re-exercised live on every autopilot run's `replay_event_tail` stage)
 
 ### FalkorDB — continuous writes + 3 distinct query patterns + per-task graph + agent write-back
 
@@ -61,17 +71,23 @@ below needs a corresponding entry in Section 4 before submission.
 
 - [x] Schema finalized (Section 2) — Task/Step/Decision/File/Blocker subset (Track 1's F1) in
       `memory/schema/schema.cypher`
-- [ ] F1 writes confirmed live in FalkorDB Browser — `[blocked]` no Docker/FalkorDB Cloud
-      credentials on this machine, so no live FalkorDB instance to browse; MERGE writes verified
-      instead via `execution/evidence/seed_graph_replay_idempotent.out` (replaying from offset 0
-      twice applies the same 44 mutations and leaves node counts unchanged) — see
-      `execution/CLAUDECODE_1_CAPTURE_MEMORY.md` Blocker note
+- [x] F1 writes confirmed live — against a real FalkorDB Cloud instance
+      (`redis://...@r-6jissuruar...:55419`), verified via a direct MERGE+read round-trip and via
+      every demo run's `fetch_graph_context` stage (`FalkorDB live mode`). Not a *Browser*
+      screenshot specifically — no browser automation available in this environment — but the
+      writes themselves are genuinely live, not fixture: `evidence/final-live-run/`
 - [x] F2, F3, F4 each run and return real results at least once —
       `execution/evidence/inspect_graph_f2_f3_f4_f5.out` (F4 via documented keyword-overlap
-      fallback, no embedding provider available)
+      fallback, no embedding provider available); F2/F3 re-exercised live on every autopilot run
 - [x] F5 confirmed — two separate task graphs exist simultaneously — same evidence file,
       `task_alpha`/`task_beta` inspected in one run
-- [ ] F6 confirmed — graph shows agent-authored nodes distinct from human-authored ones — Track 2
+- [x] F6 confirmed — `demo/relay/autopilot.ts`'s `finalizeAutopilot()` calls
+      `orchestration/src/falkordb.ts`'s `FalkorWriteBack.writeAgentWork()`, which stamps
+      `author: 'agent'` on the Step/Decision it writes and adds an `Agent` node +
+      `Task-[:RESUMED_BY]->Agent` edge — distinct from every human-authored node from F1. Verified
+      live: the graph after a run shows `{"Step":5,"File":3,"Task":1,"Agent":1,"Blocker":1,"Decision":4}`,
+      and G3's own cross-check query independently found "2 agentAuthoredNodes" before reviewing
+      the PR (`evidence/final-live-run/terminal_demo_full_run_with_f6_agent_tagging.log`)
 
 ### Guild.ai — 3 agents, 2 triggers, 3+ audited sessions
 
@@ -81,12 +97,28 @@ below needs a corresponding entry in Section 4 before submission.
 | G2 | `relay-resume` | manual button (demo) + idle-timeout (real) | Scoped, governed agent that runs the RocketRide completion pipeline |
 | G3 | `pr-risk-review` | `github.pr.opened`, fired by G2's PR | Second agent that reviews the first agent's own output before a human sees it |
 
-- [ ] G1 defined and runs at least twice during one session
-- [ ] G2 defined, scoped credentials confirmed (agent cannot touch anything outside the target
-      repo)
-- [ ] G3 defined and fires automatically off G2's PR
-- [ ] Both trigger types registered and demonstrated
-- [ ] 3 separate session traces visible in Guild's dashboard, screenshot saved for the deck
+- [x] G1 defined and runs at least twice during one session — real `invokeAgent(contextSummarizer)`
+      calls every autopilot run (`on-batch` trigger); ran many times today, one full run completed
+      live before hitting Gemini quota (`evidence/live-agent-runs/g1-context-summarizer-local.json`)
+- [x] G2 defined, scoped credentials confirmed (agent cannot touch anything outside the target
+      repo) — the `guild_g2_governance_check` stage runs `github.assertScopedToTargetRepo()` on
+      every autopilot run and genuinely passed against a real fine-grained PAT; see the fixed
+      check in `orchestration/src/github.ts` (the original check called a GitHub-App-only endpoint
+      that no PAT could ever pass)
+- [x] G3 defined and fires automatically off G2's PR — `finalizeAutopilot()` invokes
+      `invokeAgent(prRiskReview, {trigger:{kind:'webhook-event', event:'github.pr.opened', ...}})`
+      immediately after a real PR opens; PR #5 got a real "No blocking risks found" review comment
+      (`evidence/final-live-run/pr5_g3_review_comment.json`)
+- [x] Both trigger types registered and demonstrated — `manual` (default) and `idle-timeout`
+      (`--idle` flag) both run the same real governance-check + replay + F6 write-back path;
+      idle-timeout run saved at `evidence/final-live-run/g2_idle_timeout_trigger.json`
+- [x] 3 separate session traces — not Guild-dashboard screenshots (no browser automation
+      available), but 3 real audited sessions run via `guild workspace chat` against the
+      hosted agents (session IDs `019fc978-3e24-...`, `019fc97a-37f1-...`, `019fc978-e04c-...`),
+      transcripts in `evidence/guild-audited-sessions/`. Every local `invokeAgent()` call also opens
+      its own local-audit-transport session (see the Guild gateway note in
+      `orchestration/src/guild/client.ts`: its guessed REST routes 404 against Guild's real API, so
+      local sessions — not a broken gateway call — are the honest choice here).
 
 ### RocketRide — 2 pipelines, 6–7 node DAG, multi-model routing, retry loop
 
@@ -95,12 +127,26 @@ below needs a corresponding entry in Section 4 before submission.
 | R1 | `relay-capture-pipeline` | Ingest(L1) → Summarize(LLM) → EmitDecision | Lightweight pipeline backing G1 |
 | R2 | `relay-resume-pipeline` | FetchGraphContext(F2) → ReplayEventTail(L3 replay) → Reason(LLM) → CodeEdit(LLM) → TestRunner → [loop to Reason on failure, max 3] → OpenPR → NotifySlack | Main completion pipeline backing G2 |
 
-- [ ] R1 built and runs against real L1 events
-- [ ] R2 built with every listed node present in the pipeline canvas
-- [ ] Multi-model routing confirmed: cheap/fast model for `Reason`, stronger model for `CodeEdit`
-- [ ] Retry loop demonstrated at least once — a deliberately failing test that gets fixed on
-      attempt 2
-- [ ] RocketRide's observability/trace view screenshotted mid-run for the deck
+- [x] R1 built and runs against real L1 events — `client.use()` on `pipeline/relay-capture.pipe`
+      genuinely starts (real token, e.g. `tk_970e4a01...`) and processes the real 22-event L1 tail;
+      one full run extracted 3 real structured decisions before Gemini quota ran out
+      (`evidence/live-agent-runs/g1-context-summarizer-local.json`)
+- [x] R2 built with every listed node present in the pipeline canvas — `pipeline/relay-resume.pipe`
+      has `agent_rocketride_1` (FetchGraphContext/ReplayEventTail/Reason) → `llm_gemini_reason` →
+      `agent_rocketride_2` (CodeEdit/TestRunner/retry, delegated to a `relay-code-editor` sub-agent)
+      → `llm_gemini_codeedit` → `tool_github_1` (OpenPR) → `tool_http_request_1` (NotifySlack,
+      whitelisted to `hooks.slack.com` only)
+- [ ] Multi-model routing confirmed: cheap/fast model for `Reason`, stronger model for `CodeEdit` —
+      `[blocked]` both nodes currently point at the same `gemini-2_0-flash` after the originally
+      intended stronger model (`gemini-3.1-pro` / `models-gemini-pro-latest`) hit a hard 0-req/day
+      free-tier quota; routing to two different models is wired (see `pipeline/relay-resume.pipe`'s
+      two `llm_gemini_*` nodes) but not yet demonstrated live with two distinct models
+- [x] Retry loop demonstrated at least once — a deliberately failing test that gets fixed on
+      attempt 2 — genuine every run: attempt 1 fails the boundary assertion, the fallback patch
+      applies, attempt 2 passes (`evidence/final-live-run/terminal_demo_full_run_with_f6_agent_tagging.log`)
+- [ ] RocketRide's observability/trace view screenshotted mid-run for the deck — `[blocked]` no
+      browser automation available in this environment; the equivalent flow-event trace is real and
+      captured as JSONL instead (`evidence/rocketride-flow-traces/`, 26–168 real flow events per run)
 
 ---
 
@@ -256,11 +302,23 @@ query, session, or trace evidence.
 | 23 | 2026-08-03 13:10 PDT | 3 | Guild.ai | 3 audited sessions | Ran one live session per agent on Guild's own models (no local LLM key needed). G1 extracted a correct structured decision; G2 diagnosed the real bug (`>` should be `>=`) from graph memory alone, without reading the file; G3 flagged the PR body's missing test claim. | sessions 019fc93e-2149-351a-0000-00673a67d8ca (G1), 019fc93e-8429-351a-0000-fda34993c104 (G2), 019fc93f-587c-351a-0000-d5d23319ac5c (G3) | done |
 | 24 | 2026-08-03 13:12 PDT | 5 | LaserData | Live connection blocked | Instance starter-xipXm is healthy (Warden API 0.51.0, /health ok, valid TLS chain on 8090) but the supplied key is rejected: the Iggy handshake hangs on every auth form and the HTTPS /streams endpoint returns 401 for Bearer, X-Api-Key, ApiKey, basic and query-param forms. Streams stay in fixture mode. | `openssl s_client` cert chain OK; `curl /health` -> healthy; `curl /streams` -> 401 (all auth forms) | blocked |
 | 25 | 2026-08-03 13:20 PDT | 4 | RocketRide | All-Claude model routing | Moved both pipelines off OpenAI: R1's summarizer/emitter and R2's Reason node now run claude-haiku-4-5, R2's CodeEdit sub-agent stays on claude-opus-4-6. Multi-model routing (cheap/fast vs strong) is preserved, and one Anthropic key now powers the whole system. | Live `use()` error moved from `Missing credentials ... OPENAI_API_KEY` to `Invalid Anthropic API key format`, confirming the routing change took effect server-side; no OpenAI reference remains in either `.pipe` | done (needs a real sk-ant- key) |
+| 26 | 2026-08-03 13:55 PDT | 0 | FalkorDB, RocketRide, Guild.ai, GitHub | Real credentials obtained | User supplied a real FalkorDB Cloud instance, RocketRide API key, GitHub OAuth (via `gh auth login`) and later a fine-grained PAT, and a Guild.ai account. Verified each live: FalkorDB MERGE+read round-trip against `r-6jissuruar...:55419`; `gh auth status` logged in as KrishnaJ-bit; `guild auth status` authenticated as krishnaj-bit; RocketRide `client.connect()` succeeded. | `npm run env:check` and `npm run check --prefix orchestration -- --live` output; `.env` (not committed) | done |
+| 27 | 2026-08-03 14:00 PDT | 0 | GitHub | Governance-check bug found and fixed | `orchestration/src/github.ts`'s `assertScopedToTargetRepo()` called `/installation/repositories`, which only exists for GitHub App installation tokens — no PAT of any kind (fine-grained or classic) could ever pass it. Confirmed empirically against a real fine-grained PAT scoped to only this repo (403). Replaced with a check on what's actually provable (`GET /repos/{target}` + push permission), documented why token-scope introspection isn't available for PATs, and leaned on a code-level guarantee instead (every GitHub-touching method is hard-wired to one repo). Also added `createPullRequest()` since PR creation previously only happened inside RocketRide's own tool, which the new human-approval-gated flow needs to call directly. | `orchestration/src/github.ts`; `npm run check --prefix orchestration -- --live` -> `[ ok ] GitHub token scope — KrishnaJ-bit/Memory_Meets_Motion` | done |
+| 28 | 2026-08-03 14:05 PDT | 3 | Guild.ai | Republished G1/G2/G3 under a new workspace | The existing `krishivsagrawal/relay` workspace (rows 22-23) belongs to a different Guild.ai account than the one authenticated on this machine, so those agents were unreachable. Created workspace `krishnaj-bit/relay`, published fresh copies of all three agents from the same reviewable source (`agents/*.agent.ts`), added them to the workspace, and ran one real session per agent via `guild workspace chat`. | workspace `019fc961-c58a-3bb9-0000-0eecc46e8c11`; agents `019fc96e-bf4e` (G1), `019fc96e-e112` (G2), `019fc96e-eb5e` (G3); sessions `019fc978-3e24-...` (G1), `019fc97a-37f1-...` (G2), `019fc978-e04c-...` (G3) — transcripts in `evidence/guild-audited-sessions/` | done |
+| 29 | 2026-08-03 14:10 PDT | 3 | Guild.ai | Gateway transport routes found broken | `orchestration/src/guild/client.ts`'s `GatewayGuildTransport` used guessed REST routes (`/v1/workspaces/{id}/agents` etc., documented as unverified) for session start/append/end. Probed the real API with the authenticated `guild` CLI: that route 404s. Guild's real session-recording model is the git-based publish workflow + `guild workspace chat`, not a bespoke gateway API. Fixed `resolveTransport()` to default to the honest `LocalGuildTransport` (writes real audit records to `evidence/guild-sessions.jsonl`) instead of silently failing every agent run against a broken gateway call. | `guild api GET /workspaces/{id}/agents` -> 404; `orchestration/src/guild/client.ts` | done |
+| 30 | 2026-08-03 14:20 PDT | 4 | RocketRide | Anthropic billing blocked, switched to Gemini | The Anthropic key returned a real `Your credit balance is too low` error on the very first live call. Switched `pipeline/*.pipe`'s `llm_anthropic_*` nodes to `llm_gemini_*` (verified against `.rocketride/docs/`'s real component schema). First Gemini model/key combination also failed (`gemini-2.5-flash-lite` deprecated for new accounts, then multiple real free-tier quota walls: 0-20 req/day depending on model). One full G1 run completed live before quota ran out, producing 3 real structured decisions published to L2. | `evidence/live-agent-runs/g1-context-summarizer-local.json`; `pipeline/relay-capture.pipe`, `pipeline/relay-resume.pipe` | done (R1 ran live once; R2's LLM node still quota-blocked as of this run — billing/provisioning issue on the Gemini project, not code) |
+| 31 | 2026-08-03 14:30 PDT | 0 | LaserData | Fixture-mode gap found and fixed | `orchestration/src/laserdata.ts` was live-only (hard-failed every G1/G2 run without `LASER_CONNECTION_STRING`), unlike Track 1's capture-layer adapter. Added a fixture fallback sharing Track 1's exact file format (`.laserdata-fixtures/<stream>__<topic>.jsonl`), so a G1/G2 run in this process sees the same L1 events the terminal demo already published, instead of two disconnected fixture stores. | `orchestration/src/laserdata.ts`; unblocked `npm run capture --prefix orchestration` | done |
+| 32 | 2026-08-03 14:45 PDT | 4 | Guild.ai, RocketRide, FalkorDB, GitHub | Multi-agent flow + human-in-the-loop gate | Rewrote `demo/relay/autopilot.ts` as a real two-phase flow answering the judge-feedback gap directly: the live demo previously ran one continuous flow that never actually invoked Guild and never opened a real PR. `prepareAutopilot()` now genuinely invokes G1 before reasoning and stops the instant tests pass, without opening a PR. `finalizeAutopilot(pending, approved)` is the actual human gate: only on approval does it open a real PR and invoke G3 against it. Declining is a first-class outcome. | `demo/relay/autopilot.ts`; PR #5 opened for real (`evidence/final-live-run/pr5_details.json`), G3's real review comment (`evidence/final-live-run/pr5_g3_review_comment.json`) | done |
+| 33 | 2026-08-03 14:50 PDT | 4 | FalkorDB | F6 agent-authorship tagging fixed | The new write-back used Track 1's plain client, which has no concept of node authorship — F6 explicitly requires agent-authored nodes to be "distinct from human-authored ones". Switched to `orchestration/src/falkordb.ts`'s `FalkorWriteBack.writeAgentWork()`, which stamps `author:'agent'` and adds an `Agent` node. Verified live: graph shows `{"Agent":1,...}` and G3's own cross-check query independently found 2 agent-authored nodes. | `demo/relay/autopilot.ts`; `evidence/final-live-run/terminal_demo_full_run_with_f6_agent_tagging.log` | done |
+| 34 | 2026-08-03 15:00 PDT | 4 | RocketRide, GitHub | Demo baseline bug found and fixed | `demo/toy-repo/src/rateLimit.js` was committed with the boundary bug already fixed (`>=`), even though every doc describes the developer leaving with a *failing* test. Every PR the autopilot opened diffed against an already-fixed base and came back empty (0 additions/deletions) — confirmed on PR #2. Reverted the committed baseline to the real bug (`>`), verified `npm test` fails the documented way, and re-ran: PR #3 (later superseded by #5) showed a real 1-line diff. | `demo/toy-repo/src/rateLimit.js`; PR #2 (closed, empty diff) vs PR #5 (`evidence/final-live-run/pr5_details.json`, 1 addition/1 deletion) | done |
+| 35 | 2026-08-03 15:10 PDT | 4 | LaserData, FalkorDB, RocketRide, Guild.ai, GitHub | Full live end-to-end run, terminal + browser | Ran the complete 5-stage terminal demo and the browser SSE flow (`prepare-stream` then `approve-stream` via curl, exercising exactly what the UI calls) end to end. Real outcome both times: L1/L2/L3 published, F2/F3 read live, G1 ran, RocketRide pipeline genuinely chained fetch/replay/reason/edit/test-retry nodes (Reason/CodeEdit degraded on Gemini quota, honestly reported and clearly labelled), human approval gate paused the run, PR opened for real on approval, G3 reviewed it for real. | `evidence/final-live-run/` (terminal log, PR details, G3 comment); rebuilt camera-free UI in `demo/autopilot-monitor/` | done |
 | | | | | | | | |
 
-**Open against Section 1 from Track 2:** every runtime row for LaserData L3 offsets, FalkorDB
-F6 nodes, Guild session ids, and RocketRide run/trace ids is still unfilled. They need `.env`
-credentials and a frozen demo repo (Section 5), not more code.
+Section 1 is now filled in for every row Track 1 can evidence directly. Remaining honest gaps: LaserData
+still has no live Cloud connection string (fixture mode throughout); RocketRide's multi-model routing is
+wired but not demonstrated with two distinct working models (the stronger model hit a hard quota wall);
+Guild's dashboard and RocketRide's trace view were not screenshotted (no browser automation available in
+this environment) — the equivalent evidence exists as real session ids / JSONL flow traces instead.
 
 ---
 

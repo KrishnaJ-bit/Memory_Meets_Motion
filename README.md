@@ -89,11 +89,11 @@ runtime evidence to `EXECUTION.md` Section 4 when a sponsor touchpoint is comple
 
 ## Demo (60 seconds)
 
-1. The presence monitor watches camera motion plus mouse, click, keyboard, and tab activity while the dev works on `/api/checkout`.
+1. The presence monitor watches mouse, click, keyboard, and tab activity while the dev works on `/api/checkout` — no camera.
 2. The dev hits the exact 1000 ms token-bucket refill bug, then physically leaves or clicks "Simulate leaving."
 3. Relay emits a `developer_absent` handoff event and switches the UI from watching mode into autopilot mode.
-4. Guild.ai starts the governed `relay-resume` agent, and RocketRide runs fetch, replay, reason, edit, test retry, PR, and notify nodes.
-5. The PR explains what Relay inherited, what it fixed, and which sponsor-backed evidence proves the handoff.
+4. Guild.ai's `context-summarizer` (G1) compresses the session, then the governed `relay-resume` agent (G2) inherits the graph and event tail and runs RocketRide's fetch, replay, reason, edit, and test-retry nodes.
+5. A human approves before anything opens — Relay's real human-in-the-loop gate. Once approved, the PR opens for real, Guild.ai's `pr-risk-review` (G3) reviews it automatically, and the PR itself is the finale.
 
 Run the local presence gate:
 

@@ -41,6 +41,7 @@ import { DEMO_TASK_ID, DEMO_TARGET_FILE } from './scenario-session.js';
 import { contextSummarizer, prRiskReview } from '../../orchestration/src/guild/agents.js';
 import { invokeAgent } from '../../orchestration/src/guild/runner.js';
 import { github, ScopeViolationError } from '../../orchestration/src/github.js';
+import { falkorWriteBack } from '../../orchestration/src/falkordb.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -476,6 +477,14 @@ export async function finalizeAutopilot(pending: PendingApproval, approved: bool
 		// F6 — agent write-back into the SAME graph Track 1 built. Runs regardless
 		// of approval: the graph should reflect that the agent worked on this, even
 		// if a human vetoed opening the PR.
+		//
+		// Uses orchestration's FalkorWriteBack (not Track 1's plain client) for the
+		// Step/Decision writes specifically: F6's own requirement is that
+		// agent-authored nodes are "distinct from human-authored ones", and
+		// FalkorWriteBack is what actually stamps `author: 'agent'` on them (and
+		// creates the Agent node + Task-[:RESUMED_BY]->Agent edge) — Track 1's
+		// client has no concept of node authorship. Blocker resolution still goes
+		// through Track 1's client since FalkorWriteBack doesn't own that write.
 		const falkor = await createFalkorClient();
 		const now = new Date().toISOString();
 		let nodeCounts: Record<string, number> = {};
@@ -484,28 +493,32 @@ export async function finalizeAutopilot(pending: PendingApproval, approved: bool
 			await falkor.ensureSchema(graph);
 			stepId = `step_agent_${Date.now()}`;
 
-			await falkor.mergeStep(graph, {
-				id: stepId,
-				task_id: taskId,
-				order: 90,
-				description: `autopilot: ${testsPassed ? 'fixed the refill boundary and got a green suite' : 'attempted the refill boundary fix'}`,
-				status: testsPassed ? 'completed' : 'started',
-				started_at: startedAt,
-				completed_at: testsPassed ? now : null,
+			await falkorWriteBack.connect();
+			const writeBack = await falkorWriteBack.writeAgentWork({
+				taskId,
+				agentId: 'relay-resume',
+				agentName: 'Relay Resume Agent',
+				steps: [
+					{
+						stepId,
+						taskId,
+						order: 90,
+						description: `autopilot: ${testsPassed ? 'fixed the refill boundary and got a green suite' : 'attempted the refill boundary fix'}`,
+						status: testsPassed ? 'done' : 'in_progress',
+					},
+				],
+				decisions: [
+					{
+						decisionId: `${stepId}:decision`,
+						stepId,
+						text: 'widen the refill comparison to include the exact one-second boundary',
+						reasoning:
+							'the inherited blocker showed only the exact-boundary case failing, which is a strict-comparison bug rather than a bucket-maths bug',
+					},
+				],
+				filesTouched: [DEMO_TARGET_FILE],
 			});
-
-			await falkor.mergeFile(graph, { step_id: stepId, path: DEMO_TARGET_FILE });
-
-			await falkor.mergeDecision(graph, {
-				id: `${stepId}:decision`,
-				task_id: taskId,
-				step_id: stepId,
-				text: 'widen the refill comparison to include the exact one-second boundary',
-				reasoning:
-					'the inherited blocker showed only the exact-boundary case failing, which is a strict-comparison bug rather than a bucket-maths bug',
-				embedding: null,
-				created_at: now,
-			});
+			await falkorWriteBack.close();
 
 			if (testsPassed && approved && pending.inheritedBlockerId) {
 				await falkor.mergeBlockerResolved(graph, { id: pending.inheritedBlockerId, resolved_at: now });
@@ -515,8 +528,8 @@ export async function finalizeAutopilot(pending: PendingApproval, approved: bool
 			await stage({
 				name: 'falkordb_write_back',
 				status: falkor.mode === 'live' ? 'live' : 'degraded',
-				detail: `F6: wrote an agent-authored Step, Decision and File into ${graph}${testsPassed && approved ? ' and closed the inherited blocker' : ''}`,
-				data: { step_id: stepId, node_counts: nodeCounts },
+				detail: `F6: wrote ${writeBack.statements} agent-authored statement(s) (author:'agent', ${writeBack.nodesCreated} node(s) created) into ${graph}${testsPassed && approved ? ' and closed the inherited blocker' : ''}`,
+				data: { step_id: stepId, node_counts: nodeCounts, write_back: writeBack },
 			});
 		} finally {
 			await falkor.close();

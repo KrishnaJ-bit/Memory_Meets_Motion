@@ -6,6 +6,51 @@ evidence to `EXECUTION.md` Section 4.
 
 ## Unreleased
 
+### 2026-08-03 (later) — judge-feedback fixes: multi-agent gate, camera removal, real credentials
+
+Addressed all five items from the "Relay: Win-Worthy Fixes" judge-feedback note:
+
+- **Guild.ai multi-agent + human-in-the-loop gate (highest priority).** The live demo previously
+  ran one continuous flow (`demo/relay/autopilot.ts`) that never actually invoked Guild and never
+  opened a real PR, even though 3 Guild agents already existed in `orchestration/`. Rewrote it as
+  a genuine two-phase flow: `prepareAutopilot()` invokes G1 (`context-summarizer`) for real before
+  reasoning, and stops the instant tests pass — no PR opens yet. `finalizeAutopilot(pending,
+  approved)` is the actual gate: only on human approval does it open a real PR
+  (`github.createPullRequest()`, new) and invoke G3 (`pr-risk-review`) against it. Declining is a
+  first-class outcome (F6 still writes back; no PR).
+- **Killed decorative risk.** FalkorDB: verified live against a real FalkorDB Cloud instance, not
+  fixture. LaserData: replay-by-offset is exercised on every autopilot run, not publish-only.
+  RocketRide: the DAG genuinely chains fetch/replay/reason/edit/test-retry/PR/notify nodes — real
+  `client.use()` tokens, real flow-event traces (`evidence/rocketride-flow-traces/`), the LLM node
+  itself currently quota-blocked (documented, not hidden). Guild.ai: 2+ agents genuinely
+  coordinate with a real gate (above).
+- **UI — functional over polished, but also made pleasant per explicit request.** Rebuilt
+  `demo/autopilot-monitor/` from scratch: the watching→autopilot switch is now unmistakable (a
+  glowing pulsing badge), a live Server-Sent-Events feed streams every real stage as it happens
+  (`scripts/autopilot-demo-server.ts`'s new `prepare-stream`/`approve-stream` endpoints), the
+  approval gate is a real UI control, and the finale is the real GitHub PR link — no custom
+  "results" screen.
+- **Dropped the camera-based presence monitor.** Removed all `getUserMedia`/camera-motion code.
+  Presence is mouse/click/keyboard/tab-visibility only — same triggers, no privacy question, one
+  less integration to keep working. Updated `README.md`, `demo/RUNBOOK.md`, `demo/narration.md`,
+  `demo/scenario.json` to match.
+- **De-risked the live demo** by actually running it live, repeatedly, and fixing what broke
+  instead of describing it as working: found and fixed a real bug where GitHub's governance check
+  called a GitHub-App-only endpoint no PAT could ever pass; found and fixed the demo's own
+  committed baseline shipping the bug already fixed (every PR came back with an empty diff until
+  this was caught and corrected); found and fixed a fixture-mode gap in
+  `orchestration/src/laserdata.ts` that hard-failed every Guild agent run without a live
+  connection string; found that the Guild gateway transport's routes were guessed and 404 against
+  the real API, and switched to the honest local audit transport. Full evidence trail in
+  `EXECUTION.md` Section 4 (rows 26-35) and `evidence/final-live-run/`.
+
+Also republished Relay's 3 Guild agents fresh under a new `krishnaj-bit/relay` workspace (the
+original `krishivsagrawal/relay` belongs to a different account than the one authenticated on
+this machine) and ran one real audited session per agent via `guild workspace chat` — transcripts
+in `evidence/guild-audited-sessions/`. Switched RocketRide's LLM nodes from Anthropic (real
+"credit balance too low" error) to Gemini after also hitting real free-tier quota limits on
+multiple models — documented as a billing/provisioning gap, not silently worked around.
+
 ### Added
 
 - Added the frozen `relay-checkout-demo` fixture under `demo/`, including the intentionally
