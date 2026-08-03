@@ -1,4 +1,4 @@
-// Relay autopilot monitor.
+// Oto.ai autopilot monitor.
 //
 // Two halves, and the difference matters:
 //
