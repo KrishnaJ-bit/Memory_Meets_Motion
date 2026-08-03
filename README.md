@@ -3,6 +3,9 @@
 **Memory Meets Motion — Hackathon, Frontier Tower SF, Aug 3 2026**
 Track partners: RocketRide.ai · Guild.ai · LaserData · FalkorDB
 
+> **Setting up on a new machine?** See [SETUP.md](SETUP.md) — credentials,
+> FalkorDB, the Guild CLI and everything else git does not carry.
+
 ## One-liner
 
 Relay remembers exactly why you did what you did, and finishes the task while you're gone.
