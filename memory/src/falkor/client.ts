@@ -1,7 +1,8 @@
+import { fileURLToPath } from "node:url";
 import type { FalkorGraphClient } from "./types.js";
 import { FixtureFalkorClient } from "./fixtureClient.js";
 
-const DEFAULT_FIXTURE_DIR = new URL("../../../.falkordb-fixtures/", import.meta.url).pathname;
+const DEFAULT_FIXTURE_DIR = fileURLToPath(new URL("../../../.falkordb-fixtures/", import.meta.url));
 
 /**
  * `FALKOR_MODE=live` switches every caller in `memory/` to the real FalkorDB SDK with zero other

@@ -1,7 +1,8 @@
+import { fileURLToPath } from "node:url";
 import type { LaserStreamClient } from "./types.js";
 import { FixtureLaserClient } from "./fixtureClient.js";
 
-const DEFAULT_FIXTURE_DIR = new URL("../../../.laserdata-fixtures/", import.meta.url).pathname;
+const DEFAULT_FIXTURE_DIR = fileURLToPath(new URL("../../../.laserdata-fixtures/", import.meta.url));
 
 /**
  * `LASER_MODE=live` switches every caller in `capture/` and `memory/` to the real LaserData SDK

@@ -1,5 +1,7 @@
 # Oto.ai
 
+![Oto.ai final autopilot demo screen](demo/screenshots/03-autopilot.png)
+
 **Memory Meets Motion — Hackathon, Frontier Tower SF, Aug 3 2026**
 Track partners: RocketRide.ai · Guild.ai · LaserData · FalkorDB
 
@@ -8,7 +10,7 @@ Track partners: RocketRide.ai · Guild.ai · LaserData · FalkorDB
 
 ## One-liner
 
-Relay remembers exactly why you did what you did, and finishes the task while you're gone.
+Oto.ai remembers exactly why you did what you did, and finishes the task while you're gone.
 
 ## The problem
 
@@ -52,7 +54,7 @@ Full matrix with exact counts and checkboxes is in `EXECUTION.md` → Section 1.
 ## Repo structure
 
 ```
-relay/
+oto-ai/
   README.md
   AGENTS.md              # brief Codex reads every session
   EXECUTION.md           # step-by-step build plan + live execution log
@@ -91,9 +93,9 @@ runtime evidence to `EXECUTION.md` Section 4 when a sponsor touchpoint is comple
 
 1. The presence monitor watches mouse, click, keyboard, and tab activity while the dev works on `/api/checkout` — no camera.
 2. The dev hits the exact 1000 ms token-bucket refill bug, then physically leaves or clicks "Simulate leaving."
-3. Relay emits a `developer_absent` handoff event and switches the UI from watching mode into autopilot mode.
+3. Oto.ai emits a `developer_absent` handoff event and switches the UI from watching mode into autopilot mode.
 4. Guild.ai's `context-summarizer` (G1) compresses the session, then the governed `relay-resume` agent (G2) inherits the graph and event tail and runs RocketRide's fetch, replay, reason, edit, and test-retry nodes.
-5. A human approves before anything opens — Relay's real human-in-the-loop gate. Once approved, the PR opens for real, Guild.ai's `pr-risk-review` (G3) reviews it automatically, and the PR itself is the finale.
+5. A human approves before anything opens — Oto.ai's real human-in-the-loop gate. Once approved, the PR opens for real, Guild.ai's `pr-risk-review` (G3) reviews it automatically, and the PR itself is the finale.
 
 Run the local presence gate:
 
@@ -102,6 +104,24 @@ npm run demo:autopilot
 ```
 
 Then open `http://localhost:4173`.
+
+## Deployment
+
+The public Vercel deployment runs the same browser experience with safe serverless endpoints for
+the simulated handoff path. It streams the same stage names as the local system, keeps the human
+approval gate, and labels unavailable sponsor integrations as `degraded` instead of pretending
+they ran. The local terminal/browser demo remains the full integration path for live FalkorDB,
+RocketRide, Guild.ai and PR-opening credentials.
+
+Live demo: https://oto-ai-memory-meets-motion.vercel.app
+
+LaserData Cloud instance metadata for this build:
+
+- Instance: `starter-xipXm`
+- Domain: `starter-xipxm-fqrywu0izbuga.us-east-1.aws.laserdata.cloud`
+- TCP: `8090`
+- HTTPS: `443`
+- WS: `8070`
 
 ## Status
 

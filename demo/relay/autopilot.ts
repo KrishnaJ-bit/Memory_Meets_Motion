@@ -30,6 +30,7 @@ import { execFile } from 'node:child_process';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 
 import { createLaserClient } from '../../capture/src/laser/client.js';
 import { createFalkorClient } from '../../memory/src/falkor/client.js';
@@ -50,7 +51,7 @@ export const L3_TOPIC = 'actions';
 export const L1_STREAM = 'dev.session.events';
 export const L1_TOPIC = 'sessions';
 
-const REPO_ROOT = resolve(new URL('../../', import.meta.url).pathname);
+const REPO_ROOT = resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
 export type StageStatus = 'live' | 'degraded' | 'skipped' | 'failed';
 

@@ -4,6 +4,7 @@
   "description": "Relay: capture, memory, orchestration and the autopilot demo for Memory Meets Motion.",
   "type": "module",
   "scripts": {
+    "build": "node scripts/build-vercel-public.mjs",
     "demo": "tsx scripts/relay-demo.ts",
     "demo:autopilot": "tsx scripts/autopilot-demo-server.ts",
     "demo:test": "npm test --prefix demo/toy-repo",
@@ -27,7 +28,10 @@
   "bugs": {
     "url": "https://github.com/KrishnaJ-bit/Memory_Meets_Motion/issues"
   },
-  "homepage": "https://github.com/KrishnaJ-bit/Memory_Meets_Motion#readme",
+  "homepage": "https://oto-ai-memory-meets-motion.vercel.app",
+  "engines": {
+    "node": "22.x"
+  },
   "dependencies": {
     "@laserdata/laser-sdk": "^0.0.1",
     "dotenv": "^17.4.2",

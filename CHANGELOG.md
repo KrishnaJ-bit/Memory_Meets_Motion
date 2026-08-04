@@ -6,6 +6,15 @@ evidence to `EXECUTION.md` Section 4.
 
 ## Unreleased
 
+### 2026-08-03 (local Windows startup)
+
+- Fixed Windows file URL path handling in the demo reset path and fixture-backed LaserData/FalkorDB
+  clients by using `fileURLToPath()`, unblocking `npm run demo -- --reset`, browser demo seeding,
+  and the local `http://localhost:4173` autopilot monitor on this machine.
+- Updated the README to use Oto.ai as the public name and show the final autopilot screenshot.
+- Added a Vercel deployment surface: static demo asset build, serverless SSE endpoints for the
+  safe simulated handoff path, and LaserData instance metadata for `starter-xipXm`.
+
 ### 2026-08-03 (later) — judge-feedback fixes: multi-agent gate, camera removal, real credentials
 
 Addressed all five items from the "Relay: Win-Worthy Fixes" judge-feedback note:

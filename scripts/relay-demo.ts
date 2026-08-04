@@ -15,6 +15,7 @@
 
 import 'dotenv/config';
 import { rm } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { buildScenarioSession, DEMO_TASK_ID } from '../demo/relay/scenario-session.js';
 import { runAutopilot, resetDemoRepo, resetDemoGraph, type Stage } from '../demo/relay/autopilot.js';
 import { createLaserClient, L1_STREAM, L1_TOPIC } from '../capture/src/laser/client.js';
@@ -55,7 +56,7 @@ function arg(name: string): string | undefined {
  */
 async function resetFixtureStreams(): Promise<void> {
 	if ((process.env.LASER_MODE ?? 'fixture') !== 'fixture') return;
-	const dir = process.env.LASER_FIXTURE_DIR ?? new URL('../.laserdata-fixtures/', import.meta.url).pathname;
+	const dir = process.env.LASER_FIXTURE_DIR ?? fileURLToPath(new URL('../.laserdata-fixtures/', import.meta.url));
 	await rm(dir, { recursive: true, force: true });
 }
 
